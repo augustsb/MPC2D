@@ -13,6 +13,35 @@ from concurrent.futures import ProcessPoolExecutor
 from filelock import Timeout, FileLock
 import traceback
 import os
+import random
+
+
+def generate_random_parameter_combinations(alpha_h_values, omega_h_values, delta_h_values):
+    all_combinations = [(alpha_h, omega_h, delta_h) for alpha_h in alpha_h_values
+                                                       for omega_h in omega_h_values
+                                                       for delta_h in delta_h_values]
+    random.shuffle(all_combinations)  # Shuffle combinations
+    return all_combinations
+
+def divide_into_chunks(all_combinations, num_chunks):
+    chunk_size = len(all_combinations) // num_chunks + (len(all_combinations) % num_chunks > 0)
+    return [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
+
+def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results"):
+    results = []
+    for alpha_h, omega_h, delta_h in chunk:
+        simulation_results = run_simulation(alpha_h, omega_h, delta_h)
+        results.append({
+            'alpha_h': alpha_h,
+            'omega_h': omega_h,
+            'delta_h': delta_h,
+            **simulation_results
+        })
+    
+    # Define a unique filename for this chunk
+    chunk_filename = f"{filename_prefix}_{chunk_id}.csv"
+    pd.DataFrame(results).to_csv(chunk_filename, index=False)
+
 
 
 def run_simulation(alpha_h, omega_h, delta_h):
@@ -171,17 +200,33 @@ def run_and_save_simulation(alpha_h, omega_h, delta_h, filename="results.csv"):
         
 
 def main():
+
+    num_processes = os.cpu_count()  # Or specify the number of processes you want to use
     # Define the step size in degrees and convert to radians, etc.
     step_size_deg = 5
-    step_size_rad = step_size_deg * np.pi / 180
   
     alpha_h_values = np.arange(0, 90 + step_size_deg, step_size_deg) * np.pi / 180
     omega_h_values = np.arange(0, 210 + step_size_deg, step_size_deg) * np.pi / 180
     delta_h_values = np.arange(0, 90 + step_size_deg, step_size_deg) * np.pi / 180
 
-    filename = "parallel_results.csv"
-    num_processes = os.cpu_count()  # Adjust as needed
 
+    # Generate random parameter combinations
+    all_combinations = generate_random_parameter_combinations(alpha_h_values, omega_h_values, delta_h_values)
+    # Divide combinations into chunks
+    chunks = divide_into_chunks(all_combinations, num_processes)
+
+
+    #filename = "parallel_results.csv"
+
+    # Process each chunk in parallel
+    with ProcessPoolExecutor(max_workers=num_processes) as executor:
+        futures = [executor.submit(process_chunk_and_save, chunk, chunk_id) for chunk_id, chunk in enumerate(chunks)]
+
+    # Wait for all processes to complete
+    for future in futures:
+        future.result()
+
+    """
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
         futures = []
         for alpha_h in alpha_h_values:
@@ -193,8 +238,11 @@ def main():
         for future in futures:
             future.result()  # Wait for all submitted tasks to complete
 
+    """
+
     print("All simulations completed and results saved.")
 
+ 
 if __name__ == '__main__':
     main()
 

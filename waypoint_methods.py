@@ -8,25 +8,83 @@ def calculate_total_distance(optimized_path):
     total_distance = np.sum(distances)
     return total_distance
 
-def calculate_new_number_of_states(total_distance, desired_step_length):
-    n = np.ceil(total_distance / desired_step_length)
-    return n
+def calculate_distance_to_goal(p_CM, goal):
+    # optimized_path is a 2D array with shape (N+1, 2), where N is the number of intervals
+    distance = np.linalg.norm(p_CM - goal)
+    return distance
 
-def calculate_new_step_length(current_state, last_state, n):
-    step_length = (last_state - current_state) / n
-    return step_length
 
-def generate_new_states(current_state, step_length, n):
-    new_states = [current_state + i * step_length for i in range(n + 1)]
-    return np.array(new_states)
+def generate_initial_path(p_CM, goal, k):
+    # Ensure inputs are numpy arrays for vectorized operations
+    # Calculate the distance to the goal
+    distance_to_goal = np.linalg.norm(goal - p_CM)
+    # Calculate the number of steps (intervals) needed, rounded up to ensure at least one step
+    n = int(np.ceil(distance_to_goal / k)) 
+    # Calculate the new step vector k for generating waypoints
+    # Adjust to generate n+1 waypoints including both the start and the goal
+    if n > 0:  # Prevent division by zero
+        k_new = (goal - p_CM) / n 
+    else:
+        k_new = goal - p_CM  # Directly to the goal if distance is too small
+    # Generate waypoints
+    new_waypoints = [p_CM + i * k_new for i in range(n + 1)]
+    return np.array(new_waypoints), n
 
-def generate_initial_waypoints(start, goal, N):
-    # Linearly interpolate between start and goal to generate N waypoints
-    start= np.squeeze(start)  # This converts shape (2,1) to (2,)
-    # Assuming target is already in the correct shape (2,), but if not:
-    goal = np.squeeze(goal)  # Ensure target is also a 1D array of shape (2,)   
-    waypoints = np.linspace(start, goal, N+1)  # Including both start and goal
-    return waypoints
+
+
+def path_resolution(initial_waypoints, new_waypoints, k, N):
+
+    initial_waypoints = np.squeeze(initial_waypoints)
+
+    # Calculate the total path length (l_f) from the new waypoints
+    l_f = sum(np.linalg.norm(new_waypoints[:, i+1] - new_waypoints[:, i]) for i in range(new_waypoints.shape[1] - 1))
+    
+    # Calculate the number of steps (n) based on the total path length and desired step length (k)
+    n = int(np.ceil(l_f / k))
+    # Ensure n is greater than zero to avoid division by zero
+    if (n == 0):
+        n = 1
+
+    k_new = (initial_waypoints[-1,:] - initial_waypoints[0,:]) / n
+
+    # Generate the new path with n+1 waypoints
+    waypoints = [initial_waypoints[0,:] + i * k_new for i in range(n + 1)]
+
+    
+    return np.array(waypoints), n
+
+
+def extend_horizon(waypoints, N, obstacles, num_path_states, controller_params):
+    # Initialize the number of additional steps needed due to obstacles
+    additional_steps = 0
+    safe_margin = controller_params['alpha_h']
+    
+    # Start checking from the current horizon N
+    for i in range(N, num_path_states):
+        collision = False
+        for obstacle in obstacles:
+            o_pos = obstacle['center']
+            o_rad = obstacle['radius']
+            midpoint = (waypoints[i,:] + waypoints[i+1, :]) / 2
+            # Check if the distance to the obstacle is less than or equal to its radius
+            if np.linalg.norm(waypoints[i, :] - o_pos) <= o_rad + safe_margin:
+                collision = True
+                break
+            if (i < num_path_states - 1 ):  # Clearance constraints for midpoints
+                midpoint = (waypoints[i,:] + waypoints[i+1, :]) / 2
+                if (np.linalg.norm( midpoint- o_pos) <= o_rad + safe_margin):
+                    collision = True
+                    break  
+        if collision:
+            additional_steps += 1  # Increment if collision detected
+
+        else:
+            break  # Stop extending the horizon if no collision is detected
+    # Adjust N based on the additional steps needed for obstacle avoidance
+    N += additional_steps 
+
+    return N
+
 
 
 def redistribute_waypoints(optimized_path, k, p_CM):
@@ -162,3 +220,5 @@ def calculate_turning_angles(waypoints):
     total_curvature_deg = np.sum(angles_deg)
     
     return angles_deg, total_curvature_deg, max_angle_deg
+
+

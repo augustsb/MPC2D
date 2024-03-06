@@ -17,10 +17,6 @@ def init_controller_parameters(n,l):
     controller_params['omega_h'] = 150 * np.pi / 180
     controller_params['delta_h'] = 40 * np.pi / 180
 
-    #controller_params['alpha_h'] = 44 * np.pi / 180
-    #controller_params['omega_h'] = 210 * np.pi / 180
-    #controller_params['delta_h'] = 15 * np.pi / 180
-
     # Parameters for gait pattern vertical
     controller_params['alpha_v'] = 10 * np.pi / 180
     controller_params['omega_v'] = 150 * np.pi / 180

@@ -10,36 +10,17 @@ from calculate_pathframe_state import calculate_pathframe_state
 import numpy as np
 from generate_random_obstacles import generate_random_obstacles
 from MPC_shortest_path import mpc_shortest_path
+from MPC_energy_efficiency import mpc_energy_efficiency
 import threading
 from queue import Queue, Empty  # Note the import of Empty here
-from waypoint_methods import generate_initial_waypoints, calculate_curvature, calculate_distances, calculate_turning_angles
+from waypoint_methods import  generate_initial_path, path_resolution, extend_horizon
 import csv
 import traceback
 
-def format_data(simulation_results):
-    # Convert CasADi DM objects to float for formatting
-    formatted_results = {
-        'tot_energy': "{:.2f}".format(float(simulation_results['tot_energy'])),
-        'total_distance': "{:.2f}".format(float(simulation_results['total_distance'])),
-        'total_curvature': "{:.2f}".format(float(simulation_results['total_curvature'])),
-        'max_angle': "{:.2f}".format(float(simulation_results['max_angle'])),
-        'success': "Yes" if simulation_results['success'] else "No"
-    }
-    return formatted_results
 
-
-
-def start_simulation():
+def start_simulation(mode):
     # Initialize parameters
 
-        # Initialize variables with default values
-    tot_energy = 0
-    total_distance = 0
-    total_curvature = 0
-    success = False  # Assuming success is a boolean
-    max_angle = 0
-    num_timesteps = 0
-    tot_power = 0
 
     params = init_model_parameters()
 
@@ -47,229 +28,219 @@ def start_simulation():
     l = params['l']
 
     controller_params = init_controller_parameters(n,l)
-    y_int = controller_params['y_int0']
 
+    y_int = controller_params['y_int0']
     theta_z = np.zeros(n)
-    #theta_x0 = params['theta_x0']
     theta_x0_dot = params['theta_x0_dot']
     p_CM = params['p_CM0']
     p_CM_dot = params['p_CM0_dot'] 
 
-    key_states = []
-    num_obstacles = 8  # Number of obstacles to generate
-    area_size = (16, 8)  # Size of the area
-    min_distance_to_target = 2
-    width, height = area_size
-    min_x, min_y = 8, 6  # Define min bounds if any, assuming (0, 0) for simplicity
-    target = np.array([5, 5, 0])
-    # Generate random target within bounds
-    #target_x = np.random.uniform(min_x, width)
-    #target_y = np.random.uniform(min_y, height)
-    #target_z = 0  # Assuming a 2D plane for simplicity, set Z to 0 if it's 3D but flat
-
-    #target = np.array([target_x, target_y, target_z])
-   
-    start = p_CM
-
-
-    #obstacles = generate_random_obstacles(num_obstacles, area_size, start, target, min_distance_to_target)
-
-   
-    obstacles = [{'center': (2, 3, 0), 'radius': 1},]
     
+    target = np.array([29.0 , 0.0, 0.0])
+    num_obstacles = 8
+    area_size = (31, 8)
+    min_distance_to_start_target = 2.0
+    #obstacles = generate_random_obstacles(num_obstacles, area_size, p_CM, target, min_distance_to_start_target)
+
+    #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
+
+    obstacles = [
+        {'center': (10, 1.8, 0), 'radius': 1.5},  # First obstacle
+        {'center': (10, -1.8, 0), 'radius': 1.5}, # Second obstacle
+    ]
     """
-    waypoints = np.array([[0, 0, 0], [1,  0 , 0]
-                        ,[2, 0, 0]
-                        ,[3, 0 ,0]
-                         ,[4.51775321e+00, 1.47724675e+00,0]
-                         ,[4.83336555e+00, 2.42613496e+00,0]
-                        ,[4.91185474e+00, 3.42304988e+00,0]
-                        ,[4.96766418e+00, 4.42149117e+00,0]
-                         ,[5.57089833e+00, 4.71511850e+00,0]
-                         ,[5.00000000e+00, 5.00000000e+00,0]])
+    obstacles = [
+        {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
+        {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
+        {'center': (6.0, 1.0, 0), 'radius': 1.0},    # o2
+        {'center': (5.0, 4.0, 0), 'radius': 2.0},    # o3
+        {'center': (5.0, -4.0, 0), 'radius': 2.0},   # o4
+        {'center': (25.0, 4.0, 0), 'radius': 2.0},   # o5
+        {'center': (25.0, -4.0, 0), 'radius': 2.0},  # o6
+        {'center': (15.0, 4.0, 0), 'radius': 1.0},   # o7
+        {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
+    ]
 
     """
+
+
 
     dt = 0.05  #Update frequency simulation
-    mpc_dt = 1
-    k = 1
-    N = 10
+    mpc_dt = 1 #Update frequency mpc
+    k = 1 #desired step length
+    initial_N = 10 # Initial prediction horizon
+    N = initial_N
 
-    #waypoints = generate_initial_waypoints(start, target, N)
-    waypoints = np.array([[0, 0, 0], [2, 2, 0]])
+
+    P, num_states = generate_initial_path(p_CM, target, k)
+    P = np.squeeze(P)
+    #if (P_sol is None):
+       #P_sol = P.T
+    #P, num_states = path_resolution(P, P.T, k, N)
+    N = extend_horizon(P, N, obstacles, num_states, controller_params)
+
 
     result_queue = Queue()
-    mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params, waypoints,
-    N, k, result_queue))
-    mpc_thread.start()
-    #waypoints, alpha_h = mpc_shortest_path(p_CM, p_CM_dot, target, obstacles, params, controller_params, waypoints, N, k, result_queue=None)
+
+    if (mode == 'Distance'):
+        mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params, N, k, result_queue, P))
+        mpc_thread.start()
+        try:
+            P_sol = result_queue.get()  # This will block until a solution is available
+        except:
+            print("Failed to generate initial waypoints")
+
+    
+    if (mode == 'Energy'):
+        mpc_thread = threading.Thread(target=mpc_energy_efficiency, args=(p_CM, p_CM_dot, target, obstacles, params, controller_params, N, k, result_queue, P))
+        mpc_thread.start()
+        
+        try:
+            P_sol,  alpha_h_sol, omega_h_sol, delta_h_sol,  V_sol = result_queue.get()  # This will block until a solution is available
+            print('alpha_h:', alpha_h_sol[0])
+            print('omega_h:', omega_h_sol[0])
+            controller_params.update({'alpha_h': alpha_h_sol[0], 'omega_h': omega_h_sol[0], 'delta_h': delta_h_sol[0]})
+        except:
+            print("Failed to generate initial waypoints")
 
 
-    #waypoints, alpha_h = result_queue.get()  # This will block until a solution is available
-    #new_waypoints = result_queue.get()  # This will block until a solution is available
-
-    #angles, curvature, max_angle = calculate_turning_angles(waypoints)
-    #distances, total_distance = calculate_distances(waypoints)
-    #total_curvature = curvature / total_distance
-
-
-    waypoint_params = init_waypoint_parameters(waypoints)
+    waypoint_params = init_waypoint_parameters(P_sol.T)
     waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
-
     cur_alpha_path = waypoint_params['cur_alpha_path']
     theta_x0 = np.full(n, cur_alpha_path)
-    #theta_x0 = params['theta_x0']
+
      
     v0 = vertcat(theta_x0, p_CM, theta_x0_dot, p_CM_dot, y_int)
 
-    plt.ion()  # Turn on interactive plotting mode
-    fig, ax = plt.subplots()
-
-    #while t < stop_time:
     simulation_over = 0
+    total_distance_traveled = 0
     t = 0
+    p_CM_previous = p_CM
+    tot_energy = 0
     next_mpc_update_time = mpc_dt
     result_queue = Queue()
     mpc_thread = None
 
-    default_alpha_h_value = 30 * np.pi / 180  # Example: 45 degrees in radians as a default
-    alpha_h = np.full((1, N+1), default_alpha_h_value)  # Default alpha_h for all waypoints
+    plt.ion()  # Turn on interactive plotting mode
+    fig, ax = plt.subplots()
 
     try: 
         while not simulation_over:
-            current_time = t
 
-            """
-      
+            current_time = t
             # Check if it's time to start or update the MPC calculation
             if current_time >= next_mpc_update_time:
+
                 if mpc_thread is None or not mpc_thread.is_alive():
-                    # Start or restart the MPC calculation
-                    initial_waypoints = generate_initial_waypoints(p_CM, target, N)
-                    mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM,  target, obstacles, params, controller_params, initial_waypoints,
-                                                                                N, k, result_queue))
+
+                    P, num_states = generate_initial_path(p_CM, target, k)
+                    P = np.squeeze(P)
+                    if (P_sol is None):
+                        P_sol = P.T
+                    P, num_states = path_resolution(P, P_sol, k, N)
+                    N = extend_horizon(P, N, obstacles, num_states, controller_params)
+
+                    if (mode == 'Energy'):
+                        mpc_thread = threading.Thread(target=mpc_energy_efficiency(p_CM, p_CM_dot,  target, obstacles, params, controller_params,  N, k, result_queue, P))
+
+                    elif (mode == 'Distance'):
+                        mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM,  target, obstacles, params, controller_params, N, k,  result_queue, P))
+
                     mpc_thread.start()
                     next_mpc_update_time += mpc_dt  # Schedule next update
                     
             # Try to get the MPC results without blocking
             try:
-                #waypoints, alpha_h = result_queue.get_nowait()  # This will not block
-                new_waypoints = result_queue.get_nowait()  # This will not block
-                waypoint_params = init_waypoint_parameters(new_waypoints)
+
+                if (mode == 'Energy'):
+                    P_sol,  alpha_h_sol, omega_h_sol, delta_h_sol,  V_sol = result_queue.get_nowait()
+                    print('alpha_h:', alpha_h_sol[0])
+                    #print('omega_h:', omega_h_sol[0])
+                    #print(V_sol)
+                    controller_params.update({'alpha_h': alpha_h_sol[0], 'omega_h': omega_h_sol[0], 'delta_h': delta_h_sol[0]})
+                    
+
+                elif (mode == 'Distance'):
+
+                    P_sol = result_queue.get_nowait()  # This will not block
+
+                waypoint_params = init_waypoint_parameters(P_sol.T)
                 waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
             except Empty:
                 pass  # No new waypoints yet, continue with the current state
             
-            # Simulation state update remains the same
 
+            # Simulation state update remains the same
             if mpc_thread is not None and not mpc_thread.is_alive():
                 mpc_thread.join()  # Ensure thread resources are cleaned up if it's finished
-
-           """
-        
     
             # Integrate to get the next state
             v = MX.sym('v', 2*n + 7)
             v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe)
             energy_func = Function('energy_func', [v], [energy_consumption])
-            opts = {'tf': dt}
+            opts = {'tf': dt, 'abstol': 1e-4, 'reltol': 1e-4}
             F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
 
             r = F(x0=v0)
             v0 = r['xf']  # Update the state vector for the next iteration
             t += dt  # Increment time
+            tot_energy += energy_func(v0)*dt
 
-
-            """
-            num_timesteps += 1
-            energy_val = energy_func(v0)
-            tot_energy += energy_val
-            tot_power += energy_val / dt
-            """
- 
             theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
-            print(p_CM_dot)
-            print(theta_x_dot)
 
-
-            #Snake goes wild
-            if np.any(np.abs(theta_x_dot) > 20):
-                tot_energy += 1e12
-                success = False
-                simulation_over = True
-
-
+            distance_moved = np.linalg.norm(p_CM - p_CM_previous)
+            total_distance_traveled += distance_moved
+            p_CM_previous = np.copy(p_CM)
+    
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
-            #Reached target
             if target_reached:
-                success = True
                 simulation_over = True
             
-            draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, alpha_h)
+            draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, None, alpha_h=None)
             plt.pause(0.01)
 
 
- 
     except Exception as e:
         print(f"Simulation failed due to: {e}")
         traceback.print_exc()  # Prints the detailed traceback
-        tot_energy += 1e12
-        success = False  # Mark simulation as unsuccessful
-
-
-    # Simulation results
-    simulation_results = {
-        'tot_energy': tot_energy,
-        'total_distance': total_distance,
-        'total_curvature': total_curvature,
-        'success': success,
-        'max_angle': max_angle,  # Include this in the results
-        'num_timeteps' : num_timesteps,
-        'tot_power' : tot_power, 
-    }
-
 
     plt.ioff()
-
     plt.close()
 
+    return tot_energy, total_distance_traveled, t
 
-    return simulation_results
 
 
+def run_simulation_for_mode(mode):
+    # Runs the simulation for the given mode and returns results
+    tot_energy, total_distance, t = start_simulation(mode)
+    average_speed = total_distance / t
+    return tot_energy, total_distance, average_speed
+
+def print_results(mode, tot_energy, total_distance, average_speed):
+    # Print the results for the given mode
+    print(f"\nResults for {mode} Mode:")
+    print(f"Total energy: {tot_energy}")
+    print(f"Total distance traveled: {total_distance} units")
+    print(f"Average speed: {average_speed} units/time")
 
 
 if __name__ == "__main__":
+    modes = ['Distance', 'Energy']
+    results = {}
 
-    # Define the path to your CSV file
-    data_file_path = 'simulation_results.csv'
+    for mode in modes:
+        results[mode] = run_simulation_for_mode(mode)
 
-    # Open the file for writing. Use mode 'a' to append or 'w' to overwrite
-    with open(data_file_path, mode='a', newline='') as file:
-        data_writer = csv.writer(file)
-        
-        # Write headers if the file is new/empty or if you're starting fresh
-        if file.tell() == 0:  # Checks if the file is empty
-            data_writer.writerow(['Run', 'Total Energy', 'Total Distance', 'Total Curvature', 'Max angle', 'Success'])
+    # Now, results contain the simulation outcomes for both modes
+    # You can compare or print them as needed
+    for mode in modes:
+        print_results(mode, *results[mode])
 
-        # Run the simulation 5 times
-        for run in range(1):
-            simulation_results = start_simulation()
 
-                    # Format the results for readability
-            formatted_results = format_data(simulation_results)
-
-            # Write the formatted results of this run to the CSV file
-            data_writer.writerow([
-                run,
-                formatted_results['tot_energy'],
-                formatted_results['total_distance'],
-                formatted_results['total_curvature'],
-                formatted_results['max_angle'],
-                formatted_results['success']
-            ])
+    
 
 
 

@@ -30,7 +30,7 @@ def draw_circle_in_3d_alpha(ax, center, alpha, color='b'):
 
 
 
-def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obstacles, alpha_h):
+def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obstacles, initial_waypoints, alpha_h):
 
     l = params['l']
     n = params['n']
@@ -93,7 +93,20 @@ def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obst
             # Optionally, draw lines connecting waypoints to visualize the path
             if len(waypoints_np) > 1:  # Ensure there are multiple waypoints for a path
                 ax.plot(waypoints_np[:, 0], waypoints_np[:, 1], 'g--', label='Path')
-    
+
+        # Assuming waypoints is already a NumPy array as per your numeric computation adjustments
+    if initial_waypoints is not None:
+        # Directly use the waypoints array for visualization
+        initial_waypoints_np = initial_waypoints  # waypoints is already a NumPy array, no need for conversion
+        # Draw waypoints if they exist
+        if len(initial_waypoints_np) > 0:  # Check if waypoints_np is not empty
+            ax.scatter(initial_waypoints_np[:, 0], initial_waypoints_np[:, 1], color='k', marker='o', s=100, label='Waypoints')
+
+            # Optionally, draw lines connecting waypoints to visualize the path
+            if len(initial_waypoints_np) > 1:  # Ensure there are multiple waypoints for a path
+                ax.plot(initial_waypoints_np[:, 0], initial_waypoints_np[:, 1], 'k--', label='Path')
+
+
     # Set axis limits
     p_numpy = p.full().flatten()  # Assuming p is a CasADi vector
     zoom_factor = 10  # Adjust this factor to zoom out more or less
