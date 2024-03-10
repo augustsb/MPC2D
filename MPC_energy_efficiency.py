@@ -2,7 +2,7 @@ from casadi import Opti, sumsqr, sqrt, Function, dot, MX, mtimes, Function, fmax
 import numpy as np
 import matplotlib.pyplot as plt
 from init_model_parameters import init_model_parameters
-from waypoint_methods import redistribute_waypoints, generate_initial_path, extend_horizon
+from waypoint_methods import generate_initial_path, extend_horizon
 import traceback
 from joblib import load
 import torch

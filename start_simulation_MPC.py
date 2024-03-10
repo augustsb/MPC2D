@@ -43,12 +43,13 @@ def start_simulation(mode):
     #obstacles = generate_random_obstacles(num_obstacles, area_size, p_CM, target, min_distance_to_start_target)
 
     #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
-
+    """
     obstacles = [
         {'center': (10, 1.8, 0), 'radius': 1.5},  # First obstacle
         {'center': (10, -1.8, 0), 'radius': 1.5}, # Second obstacle
     ]
     """
+ 
     obstacles = [
         {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
         {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
@@ -61,7 +62,7 @@ def start_simulation(mode):
         {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
     ]
 
-    """
+  
 
 
 
@@ -70,15 +71,11 @@ def start_simulation(mode):
     k = 1 #desired step length
     initial_N = 10 # Initial prediction horizon
     N = initial_N
+    N_min = 3
 
-
-    P, num_states = generate_initial_path(p_CM, target, k)
+    P = generate_initial_path(p_CM, target, k)
     P = np.squeeze(P)
-    #if (P_sol is None):
-       #P_sol = P.T
-    #P, num_states = path_resolution(P, P.T, k, N)
-    N = extend_horizon(P, N, obstacles, num_states, controller_params)
-
+    N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
 
     result_queue = Queue()
 
@@ -129,16 +126,17 @@ def start_simulation(mode):
 
             current_time = t
             # Check if it's time to start or update the MPC calculation
-            if current_time >= next_mpc_update_time:
+            if (current_time >= next_mpc_update_time and N > N_min):
 
                 if mpc_thread is None or not mpc_thread.is_alive():
-
-                    P, num_states = generate_initial_path(p_CM, target, k)
+                    
+                    print('N:', N)
+                    P = generate_initial_path(p_CM, target, k)
+                    print('P_shape before:', P.shape[0])
                     P = np.squeeze(P)
-                    if (P_sol is None):
-                        P_sol = P.T
-                    P, num_states = path_resolution(P, P_sol, k, N)
-                    N = extend_horizon(P, N, obstacles, num_states, controller_params)
+                    P = path_resolution(P, P_sol, k, N)
+                    print('P_shape after:', P.shape[0])
+                    N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
 
                     if (mode == 'Energy'):
                         mpc_thread = threading.Thread(target=mpc_energy_efficiency(p_CM, p_CM_dot,  target, obstacles, params, controller_params,  N, k, result_queue, P))
@@ -165,7 +163,7 @@ def start_simulation(mode):
                     P_sol = result_queue.get_nowait()  # This will not block
 
                 waypoint_params = init_waypoint_parameters(P_sol.T)
-                waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+                #waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
             except Empty:
                 pass  # No new waypoints yet, continue with the current state
@@ -194,6 +192,7 @@ def start_simulation(mode):
             p_CM_previous = np.copy(p_CM)
     
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+
 
             if target_reached:
                 simulation_over = True
