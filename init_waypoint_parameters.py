@@ -26,7 +26,7 @@ def init_waypoint_parameters(waypoints):
   
    
     cur_WP_idx = 1  # Start from the first waypoint (considering 0-based indexing)
-    r_acceptance = 0.2
+    r_acceptance = 0.5
 
     # Calculate angles between waypoints directly using NumPy
     x_prev, y_prev, z_prev = waypoints[cur_WP_idx-1]

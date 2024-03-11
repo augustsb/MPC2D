@@ -51,7 +51,10 @@ def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obst
     
     # Calculate positions of links
     XYZ = calculate_XYZ(p, params, theta_x, theta_z)  # Assuming this function is defined elsewhere
-    x, y = XYZ[:n], XYZ[n:2*n]
+
+    x, y, z = XYZ[:n], XYZ[n:2*n],  XYZ[2*n:3*n]
+
+    middle_link_index = n // 2  # This is an integer division
  
     # Draw the snake robot
     for j in range(n):
@@ -94,30 +97,18 @@ def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obst
             if len(waypoints_np) > 1:  # Ensure there are multiple waypoints for a path
                 ax.plot(waypoints_np[:, 0], waypoints_np[:, 1], 'g--', label='Path')
 
-    """
-     # Assuming waypoints is already a NumPy array as per your numeric computation adjustments
-    if initial_waypoints is not None:
-        # Directly use the waypoints array for visualization
-        initial_waypoints_np = initial_waypoints  # waypoints is already a NumPy array, no need for conversion
-        # Draw waypoints if they exist
-        if len(initial_waypoints_np) > 0:  # Check if waypoints_np is not empty
-            ax.scatter(initial_waypoints_np[:, 0], initial_waypoints_np[:, 1], color='k', marker='o', s=100, label='Waypoints')
-
-            # Optionally, draw lines connecting waypoints to visualize the path
-            if len(initial_waypoints_np) > 1:  # Ensure there are multiple waypoints for a path
-                ax.plot(initial_waypoints_np[:, 0], initial_waypoints_np[:, 1], 'k--', label='Path')
-
-    """
-
-
     # Set axis limits
     p_numpy = p.full().flatten()  # Assuming p is a CasADi vector
     zoom_factor = 10  # Adjust this factor to zoom out more or less
     ax.set_xlim([p_numpy[0]-n*l-0.03, p_numpy[0]+zoom_factor*n*l+0.3])
     ax.set_ylim([p_numpy[1]-n*l-0.1, p_numpy[1]+zoom_factor*n*l+0.01])
     #ax.set_zlim([p_numpy[2]-n*l-0.01, p_numpy[2]+n*l+0.01])
-    
+
     plt.show()
+
+    middle_link_position = np.array((x[middle_link_index], y[middle_link_index], z[middle_link_index])).flatten()
+
+    return middle_link_position
 
 
 

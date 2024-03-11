@@ -46,6 +46,7 @@ def path_resolution(x, x_opt, k_abs, N):
     Returns:
     - P: The updated path as an array of states.
     """
+
     # Calculate the Euclidean distance of the optimal path (lf)
     lf = sum(np.linalg.norm(x_opt[:,i+1] - x_opt[:, i]) for i in range(N-1))
     
@@ -67,6 +68,15 @@ def path_resolution(x, x_opt, k_abs, N):
     # Generate the new initial path using the new step length
     P = np.array([x0 + i * k for i in range(n + 1)])
 
+    """
+    path_prev_index = x.shape[0]
+    path_index = P.shape[0]
+    diff = path_index - path_prev_index
+
+    if (N + diff >= 10):
+        N = N + diff
+    """
+
     return P
 
 
@@ -75,6 +85,7 @@ def extend_horizon(waypoints, N, obstacles, num_path_states, controller_params):
     additional_steps = 0
     safe_margin = controller_params['alpha_h']
 
+    N = 10
 
     # Start checking from the current horizon N
     for i in range(N-1, num_path_states):
@@ -89,11 +100,11 @@ def extend_horizon(waypoints, N, obstacles, num_path_states, controller_params):
                 collision = True
                 break
 
-            #if (i < num_path_states - 1 ):  # Clearance constraints for midpoints
-                #midpoint = (waypoints[i,:] + waypoints[i+1, :]) / 2
-                #if (np.linalg.norm( midpoint- o_pos) <= o_rad + safe_margin):
-                    #collision = True
-                    #break  
+            if (i < num_path_states - 1 ):  # Clearance constraints for midpoints
+                midpoint = (waypoints[i,:] + waypoints[i+1, :]) / 2
+                if (np.linalg.norm( midpoint- o_pos) <= o_rad + safe_margin):
+                    collision = True
+                    break  
         if collision:
             additional_steps += 1  # Increment if collision detected
 
@@ -101,6 +112,9 @@ def extend_horizon(waypoints, N, obstacles, num_path_states, controller_params):
             break  # Stop extending the horizon if no collision is detected
     # Adjust N based on the additional steps needed for obstacle avoidance
     N += additional_steps
+
+    if (N > num_path_states):
+        N = num_path_states
 
     return N
 

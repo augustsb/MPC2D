@@ -32,12 +32,12 @@ def calculate_XYZ(p_CM, params, theta_x, theta_z):
     # Calculate positions
     x = -l * K.T @ cos_theta_z_diag @ cos_theta_x + e * p_CM[0]
     y = -l * K.T @ cos_theta_z_diag @ sin_theta_x + e * p_CM[1]
-   #z = l * K.T @ sin_theta_z + e * p_CM[2]
+    z = l * K.T @ sin_theta_z + e * p_CM[2]
   
 
 
     # Construct the return vector
     #XYZ = vertcat(x, y, z)
-    XYZ = vertcat(x, y)
+    XYZ = vertcat(x, y, z)
     
     return XYZ
