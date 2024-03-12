@@ -1,0 +1,296 @@
+
+
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.metrics import mean_squared_error
+import numpy as np
+from joblib import dump
+import matplotlib.pyplot as plt
+from sklearn.ensemble import RandomForestRegressor
+import os
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.pipeline import make_pipeline
+from sklearn.linear_model import Ridge
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader, TensorDataset
+from train_models import train_linear_regression, train_random_forest, train_polynomial_regression, train_neural_network
+from pymoo.problems.multi import *
+from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
+
+
+# Sample data for lateral undulation (ELENI)
+# wp α [deg] ω [deg/s] δ [deg] υ¯ [m/s] Pavg [W]
+data_lateral_undulation = np.array([
+    [0,     44.0100, 210.0000, 15.1400, 0.8425, 34.2515],
+    [0.0500, 41.5451, 209.9863, 16.1863, 0.8407, 29.9318],
+    [0.1000, 38.5042, 209.9987, 17.6406, 0.8327, 24.9031],
+    [0.1500, 37.1659, 209.9976, 18.9259, 0.8259, 22.3614],
+    [0.2000, 34.9161, 209.6835, 20.3226, 0.8107, 18.9214],
+    [0.2500, 33.4248, 209.9899, 22.9651, 0.7922, 15.6914],
+    [0.3000, 32.1065, 209.9997, 26.1707, 0.7640, 12.4822],
+    [0.3500, 31.7042, 209.9932, 28.3385, 0.7444, 10.8197],
+    [0.4000, 31.9861, 209.9938, 30.8753, 0.7233, 9.3646],
+    [0.4500, 32.0642, 209.9931, 33.6360, 0.6956, 7.8220],
+    [0.5000, 32.4826, 209.9995, 35.8916, 0.6731, 6.7981],
+    [0.5500, 33.2925, 209.9890, 38.9056, 0.6417, 5.6396],
+    [0.6000, 34.4218, 209.9967, 41.3291, 0.6170, 4.8916],
+    [0.6500, 35.0257, 209.9667, 44.0756, 0.5842, 4.0883],
+    [0.7000, 37.7160, 209.9899, 47.2997, 0.5523, 3.4617],
+    [0.7500, 39.7087, 207.8852, 50.9907, 0.5060, 2.7433],
+    [0.8000, 39.1360, 193.1456, 53.9248, 0.4379, 1.9467],
+    [0.8500, 54.4381, 209.6399, 75.3818, 0.3102, 0.8571],
+    [0.9000, 68.4280, 207.9591, 89.1905, 0.2425, 0.4111],
+    [0.9500, 46.4469, 138.4423, 89.9360, 0.1555, 0.1693],
+    [1.0000, 0, 16.5134, 59.8411, 0, 0]
+])
+
+# wp α [deg] ω [deg/s] δ [deg] υ¯ [m/s] Pavg [W]
+# Eel-like motion data (ELENI)
+data_eel = np.array([
+    [0, 59.2350, 209.9813, 26.1994, 0.6038, 13.4369],
+    [0.0500, 58.9029, 209.9887, 26.5538, 0.6037, 13.1134],
+    [0.1000, 56.7018, 209.9712, 28.9106, 0.6004, 11.0886],
+    [0.1500, 54.6536, 209.9960, 30.3223, 0.5960, 9.7995],
+    [0.2000, 53.8984, 209.9943, 31.4665, 0.5922, 9.0650],
+    [0.2500, 52.6137, 209.9798, 33.4673, 0.5838, 7.8826],
+    [0.3000, 52.1308, 209.9987, 34.8301, 0.5776, 7.2274],
+    [0.3500, 51.3303, 209.9852, 36.6885, 0.5675, 6.3739],
+    [0.4000, 51.0358, 209.9947, 38.4587, 0.5576, 5.7077],
+    [0.4500, 51.4150, 209.9983, 40.4453, 0.5469, 5.1124],
+    [0.5000, 52.2181, 209.9899, 42.9157, 0.5327, 4.4629],
+    [0.5500, 51.7512, 209.9984, 44.8704, 0.5178, 3.9089],
+    [0.6000, 53.5402, 209.9995, 47.6477, 0.5007, 3.3852],
+    [0.6500, 56.0090, 209.9980, 51.2005, 0.4769, 2.7965],
+    [0.7000, 57.0378, 209.9775, 53.9967, 0.4552, 2.3694],
+    [0.7500, 62.0106, 209.9535, 58.4522, 0.4245, 1.8881],
+    [0.8000, 65.6760, 209.9181, 62.8889, 0.3915, 1.4920],
+    [0.8500, 73.7492, 209.8543, 71.2193, 0.3337, 0.9857],
+    [0.9000, 89.2687, 209.9100, 89.9740, 0.2334, 0.3958],
+    [0.9500, 75.0664, 150.9382, 89.7837, 0.1663, 0.2004],
+    [1.0000, 1.0695, 0.0639, 51.8275, 0, 0]
+])
+
+# α [deg] ω [deg/s] δ [deg] υ¯ [m/s] Pavg [W] MY OWN PARETO FRONT
+data = np.array([
+    [0.087266, 3.665191, 0.261799, 0.445039, 0.284728],
+    [0.174533, 2.356194, 0.523599, 0.449165, 0.369763],
+    [0.174533, 2.443461, 0.523599, 0.464443, 0.391545],
+    [0.174533, 2.530727, 0.523599, 0.478966, 0.417391],
+    [0.174533, 2.617994, 0.523599, 0.493197, 0.445189],
+    [0.174533, 2.705260, 0.523599, 0.507383, 0.482964],
+    [0.087266, 3.665191, 0.174533, 0.400988, 0.520056],
+    [0.174533, 2.792527, 0.523599, 0.521817, 0.527017],
+    [0.174533, 2.879793, 0.523599, 0.536896, 0.576738],
+    [0.174533, 2.967060, 0.523599, 0.552032, 0.619511],
+    [0.174533, 3.054326, 0.523599, 0.567545, 0.658881],
+    [0.174533, 3.141593, 0.523599, 0.582752, 0.690708],
+    [0.174533, 3.228859, 0.523599, 0.597836, 0.716678],
+    [0.174533, 3.316126, 0.523599, 0.611778, 0.743627],
+    [0.087266, 3.665191, 0.087266, 0.283402, 0.751021],
+    [0.174533, 3.403392, 0.523599, 0.625710, 0.774573],
+    [0.174533, 3.490659, 0.523599, 0.639436, 0.817025],
+    [0.174533, 3.577925, 0.523599, 0.653297, 0.871023],
+    [0.174533, 3.665191, 0.523599, 0.667533, 0.929634],
+    [0.174533, 2.530727, 0.436332, 0.804235, 1.062600],
+    [0.174533, 2.617994, 0.436332, 0.809632, 1.169500],
+    [0.174533, 2.705260, 0.436332, 0.820248, 1.352570],
+    [0.174533, 2.792527, 0.436332, 0.825903, 1.458270],
+    [0.174533, 2.879793, 0.436332, 0.838594, 1.674490],
+    [0.174533, 2.967060, 0.436332, 0.848548, 1.760280],
+    [0.174533, 3.577925, 0.436332, 0.920900, 1.788800],
+    [0.174533, 3.665191, 0.436332, 0.931162, 1.795350],
+    [0.261799, 3.403392, 0.523599, 0.936544, 4.702030],
+    [0.261799, 3.490659, 0.523599, 0.945509, 4.801790],
+    [0.261799, 3.577925, 0.523599, 0.955418, 4.978710],
+    [0.261799, 3.665191, 0.523599, 0.965732, 5.198850]
+])
+
+
+"""
+def load_and_preprocess_data(directory_path, file_prefix, num_files):
+    all_files = [os.path.join(directory_path, f"{file_prefix}{i}.csv") for i in range(num_files)]
+    df_list = [pd.read_csv(file) for file in all_files]
+    data = pd.concat(df_list, ignore_index=True)
+    data.loc[~data['success'], ['average_energy', 'average_velocity']] = 0
+    return data
+
+"""
+
+def find_optimal_configuration(data_all, alpha_h_constraint, V_min):
+    # Ensure correct logical operations for filtering with Pandas
+
+    alpha_h_i_value = float(alpha_h_constraint)
+
+    valid_entries = data_all[(data_all['alpha_h'] <= alpha_h_i_value) & 
+                             (data_all['average_velocity'] >= V_min)]
+    
+    if not valid_entries.empty:
+        # Find the entry with minimum average energy
+        optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
+        return optimal_entry
+    else:
+        # Handle case where no entry matches the constraints
+        return None
+
+
+def load_and_preprocess_data(directory_path, file_prefix, num_files):
+    all_files = [os.path.join(directory_path, f"{file_prefix}{i}.csv") for i in range(num_files)]
+    df_list = [pd.read_csv(file) for file in all_files]
+    data = pd.concat(df_list, ignore_index=True)
+    # Assuming success is defined as having non-zero average_energy and average_velocity
+    # This line might be redundant if 'success' accurately flags all and only successful instances
+    data = data[data['success'] == True] 
+    return data
+
+
+def get_features_targets(data):
+    X = data[['alpha_h', 'omega_h', 'delta_h', 'average_velocity']]
+    y = data[['average_energy']]
+    return X, y
+
+def get_features_targets_alpha(data):
+    X = data[['alpha_h', 'average_velocity']]
+    y = data[['average_energy']]
+    return X, y
+
+
+def predict_energy_using_poly_model(alpha_h, omega_h, delta_h, V, poly_model):
+    # Note: This is a simplified example. You'd need to adapt it based on your actual model input format.
+    # Assume the model expects a 2D array [[alpha_h, omega_h, delta_h, V]] for a single prediction.
+    input_features = np.array([[alpha_h, omega_h, delta_h, V]])
+    return poly_model.predict(input_features)[0]  # Assuming the model returns a 2D array and we're interested in the first value.
+
+
+
+def predict_energy_using_poly_model_alpha(alpha_h, V, poly_model):
+    # Note: This is a simplified example. You'd need to adapt it based on your actual model input format.
+    # Assume the model expects a 2D array [[alpha_h, omega_h, delta_h, V]] for a single prediction.
+    input_features = np.array([[alpha_h, V]])
+    return poly_model.predict(input_features)[0]  # Assuming the model returns a 2D array and we're interested in the first value.
+
+
+def make_pareto_front():
+
+  
+    objectives = data[['average_velocity', 'average_energy']].to_numpy()
+    objectives[:, 0] = -objectives[:, 0]  # Negate average_velocity for "maximization"
+
+    nds = NonDominatedSorting().do(objectives, only_non_dominated_front=True)
+    pareto_points = objectives[nds]
+    pareto_points[:, 0] = -pareto_points[:, 0]  # Convert back after negation
+    # Optional: Convert Pareto points to DataFrame for a nicer table view
+    pareto_df = pd.DataFrame(pareto_points, columns=['average_velocity', 'average_energy'])
+    print(pareto_df)
+
+    # Since we're minimizing average_energy and maximizing average_velocity, ensure correct orientation
+    plt.scatter(pareto_df['average_velocity'], pareto_df['average_energy'])
+    plt.xlabel('Average Velocity')
+    plt.ylabel('Average Energy')
+    plt.title('Pareto Front')
+    plt.gca().invert_yaxis()  # If lower average_energy values are better
+    plt.show()
+ 
+
+    """
+    # Extract objectives and parameters
+    objectives_and_params = data[['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy']].to_numpy()
+    # In this context, assuming we want to maximize average_velocity and minimize average_energy
+    # Negate average_velocity for "maximization" since pymoo performs minimization
+    objectives_and_params[:, 3] = -objectives_and_params[:, 3]
+    # Perform non-dominated sorting
+    nds = NonDominatedSorting().do(objectives_and_params[:, -2:], only_non_dominated_front=True)
+    # Extract non-dominated points including parameters
+    pareto_points_with_params = objectives_and_params[nds]
+    # Convert back the negation for average_velocity for visualization or further analysis
+    pareto_points_with_params[:, 3] = -pareto_points_with_params[:, 3]
+    pareto_df = pd.DataFrame(pareto_points_with_params, columns=['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy'])
+    pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
+    pareto_df_sorted['average_energy'] = pareto_df_sorted['average_energy'].abs()
+    pareto_df_sorted = pareto_df_sorted.sort_values(by='average_energy', ascending=True)
+    print(pareto_df_sorted)
+    """
+
+
+
+
+
+def plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_range, typical_values):
+    plt.figure(figsize=(14, 7))
+    parameters = [alpha_h_range, omega_h_range, delta_h_range, V_range]
+    param_names = ['alpha_h', 'omega_h', 'delta_h', 'V']
+    
+    for i, param_range in enumerate(parameters):
+        plt.subplot(2, 2, i+1)
+        y_values = []
+        
+        for param_value in param_range:
+            # Prepare the feature vector for prediction
+            features = np.array([[typical_values['alpha_h'], typical_values['omega_h'], typical_values['delta_h'], typical_values['average_velocity']]])
+            features[0][i] = param_value  # Update the i-th parameter with the current value from its range
+
+            # Check if the model is a PyTorch model
+            if isinstance(model, torch.nn.Module):
+                # Convert features to a PyTorch tensor
+                features_tensor = torch.tensor(features, dtype=torch.float32)
+                # Use the model to predict, ensuring it's in no_grad context for inference
+                with torch.no_grad():
+                    predicted_energy = model(features_tensor).numpy().flatten()[0]
+            else:
+                # Use the predict method directly for sklearn models
+                predicted_energy = model.predict(features).flatten()[0]
+            
+            y_values.append(predicted_energy)
+        
+        plt.plot(param_range, y_values, label=f'Energy vs. {param_names[i]}')
+        plt.xlabel(param_names[i])
+        plt.ylabel('Predicted Energy')
+        plt.title(f'Predicted Energy vs. {param_names[i]}')
+        plt.legend()
+    
+    plt.tight_layout()
+    plt.show()
+
+
+
+
+
+if __name__ == "__main__":
+
+    directory_path = "/home/augustsb/MPC2D/results_2802"
+    file_prefix = "chunk_results_"
+
+
+    data = load_and_preprocess_data(directory_path, file_prefix, 16)
+
+
+    X, y = get_features_targets(data)
+    #X, y = get_features_targets_alpha(data)
+
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+    model = train_polynomial_regression(X, y, X_test, y_test) #Decent
+    #model = train_random_forest(X, y, X_test, y_test) #Good
+    #model = train_linear_regression(X, y, X_test, y_test) #Bad
+    #model = train_neural_network(X, y, X_test, y_test) #Best
+
+    typical_values = {'alpha_h': 30*np.pi/180, 'omega_h': 150*np.pi/180, 'delta_h': 40*np.pi/180, 'average_velocity': 0.35}
+    
+    alpha_h_range = np.linspace(0, 90*np.pi/180, 100)
+    omega_h_range = np.linspace(0, 210*np.pi/180, 100)
+    delta_h_range = np.linspace(0, 90*np.pi/180, 100)
+    V_range = np.linspace(0.0, 2.0, 100)
+
+    plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_range, typical_values)
+
+    make_pareto_front()
+  
+
+
+
+
+
+

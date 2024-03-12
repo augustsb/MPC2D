@@ -18,6 +18,10 @@ import json
 import traceback
 from improved_initial_guess import rrt, interpolate_path
 from visualize_simulation_results import visualize_simulation_results, convert_to_serializable
+from predict_energy import load_and_preprocess_data
+
+
+data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
 
 
 
@@ -72,9 +76,10 @@ def start_simulation(mode):
     initial_N = 10 # Initial prediction horizon
     N = initial_N
     N_min = 2
+    V_min = 0.2
 
     
-    all_params = False
+    all_params = True
     simulation_over = False
     total_distance_traveled = 0
     t = 0
@@ -131,7 +136,14 @@ def start_simulation(mode):
 
             # Update controller params based on the retrieved solution
             controller_params.update({'alpha_h': sol_alpha_h[0]})  # Example for alpha_h
-            
+
+            #valid_entries = data_all[(data_all['alpha_h'] == sol_alpha_h[0]) & (data_all['average_velocity'] >= V_min)]
+            #optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
+            #controller_params.update({'omega_h': optimal_entry['omega_h']})
+            #controller_params.update({'delta_h': optimal_entry['delta_h']})
+
+
+
             if "sol_omega_h" in result and "sol_delta_h" in result:
                 # These values are only present if all_params was True
                 sol_omega_h = result["sol_omega_h"]
@@ -203,6 +215,12 @@ def start_simulation(mode):
                     solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
                     # Update controller params based on the retrieved solution
                     controller_params.update({'alpha_h': sol_alpha_h[0]})  # Example for alpha_h
+
+                    #valid_entries = data_all[(data_all['alpha_h'] == sol_alpha_h[0]) & (data_all['average_velocity'] >= V_min)]
+                    #optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
+                    #controller_params.update({'omega_h': optimal_entry['omega_h']})
+                    #controller_params.update({'delta_h': optimal_entry['delta_h']})
+
 
                     if "sol_omega_h" in result and "sol_delta_h" in result:
                         # These values are only present if all_params was True
