@@ -1,5 +1,6 @@
-import casadi
 import numpy as np
+import os
+import pandas as pd
 
 
 def generate_initial_path(x0, xgoal, k_abs):
@@ -118,6 +119,27 @@ def extend_horizon(waypoints, N, obstacles, num_path_states, controller_params):
 
     return N
 
+
+
+"""
+def load_and_preprocess_data(directory_path, file_prefix, num_files):
+    all_files = [os.path.join(directory_path, f"{file_prefix}{i}.csv") for i in range(num_files)]
+    df_list = [pd.read_csv(file) for file in all_files]
+    data_all = pd.concat(df_list, ignore_index=True)
+    data_success = data_all[data_all['success'] == True]
+    return data_all, data_success
+
+# Usage
+data_all, data_success = load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
+
+# Counting
+total_runs = len(data_all)
+successful_runs = len(data_success)
+
+print(f"Total runs: {total_runs}")
+print(f"Successful runs: {successful_runs}")
+
+"""
 
 
 

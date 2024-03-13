@@ -52,16 +52,20 @@ def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
     
     intercept = MX(0.29915636699839293)
     
-    f = MX(0)
+    f_dist = MX(0)
+    f_energy = MX(0)
+    f_time = MX(0)
+    epsilon = 1e-6
 
     for i in range(N-1):  # Iterate over the horizon, except the last point where there's no next point
 
         segment_length = sumsqr(X[:, i+1] - X[:, i])
-        f += segment_length
+        f_dist += segment_length
 
         alpha_h_i = alpha_h[i]
         omega_h_i = omega_h[i]
         delta_h_i = delta_h[i]
+        #V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
         V_i = V[i]
         # Correct construction of polynomial features for iteration i
         linear_terms = vertcat(alpha_h_i, omega_h_i, delta_h_i, V_i)
@@ -71,41 +75,46 @@ def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
 
         predicted_average_energy = intercept + dot(coefficients, all_terms) 
  
-        #predicted_time = segment_length / fabs(V_i)
-        #f += predicted_average_energy * predicted_time
-        f += predicted_average_energy
+        #predicted_time = segment_length / V_i
+        #f_time += predicted_time
 
-    return f
+        f_energy += predicted_average_energy 
+
+    return f_dist, f_energy
+    #return f_energy
 
 
 
 def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, all_params):
 
 
-  
+    
+    alpha_h0 = controller_params['alpha_h']
+    omega_h0 = controller_params['omega_h']
+    delta_h0 = controller_params['delta_h']
+    cur_velocity = np.linalg.norm(p_dot)
+
+    #Pareto front
+    """ 
     min_velocity = 0.2
-    max_velocity = 1.5
-    alpha_h_min = 15*np.pi/180
-    alpha_h_max = 45*np.pi/180
+    max_velocity = 0.96
+    alpha_h_min = 0.08
+    alpha_h_max = 0.26
+    omega_h_min = 2.66
+    omega_h_max = 3.66
+    delta_h_min = 0.08
+    delta_h_max = 0.70
+    """
+   
+
+    min_velocity = 0.3
+    max_velocity = 0.7
+    alpha_h_min = 5*np.pi/180
+    alpha_h_max = 90*np.pi/180
     omega_h_min = 40*np.pi/180
     omega_h_max = 210*np.pi/180
     delta_h_min = 30*np.pi/180
     delta_h_max = 90*np.pi/180
-   
-
-    #Pareto front
-
-    """
-    min_velocity = 0.40
-    max_velocity = 1.0
-    alpha_h_min = 0.09
-    alpha_h_max = 0.30
-    omega_h_min = 2.40
-    omega_h_max = 3.66
-    delta_h_min = 0.09
-    delta_h_max = 0.52
-    """
-
 
     N = initial_N
 
@@ -130,6 +139,8 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
         opti.subject_to(delta_h[i] <= delta_h_max)
         opti.subject_to(V[i] >= min_velocity)
         opti.subject_to(V[i] <= max_velocity)
+        #if i < N-1:
+            #opti.subject_to(sumsqr(X[:, i] - X[:, i+1]) > 0)
 
 
     for i in range(N):  # Clearance constraints for waypoints
@@ -143,21 +154,31 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
                 #opti.subject_to(norm_2(midpoint - o_pos) >= (o_rad + alpha_h[i]))
                 opti.subject_to(sumsqr(midpoint - o_pos) > (o_rad + alpha_h[i])**2)
 
+
     for i in range(N):
         opti.set_initial(X[:,i], P[i,:])
 
-    f_all_params = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
+    opti.set_initial(alpha_h[0], alpha_h0)
+    opti.set_initial(omega_h[0], omega_h0)
+    opti.set_initial(delta_h[0], delta_h0)
+
+
+
+
+    f_dist, f_energy = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
+    
+    #f_energy = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
     #f = object_function_all_params_lookup(X,  N,  alpha_h,  min_velocity)
     #f = object_function(X, N)
 
-    opti.minimize(f_all_params)
-  
+    opti.minimize(f_dist + f_energy)
+    #opti.minimize(10 * f_energy)
  
 
     #Solver options
     opts = {"verbose": True,
              "ipopt.print_level": 1,
-             "ipopt.max_iter": 10000,
+             "ipopt.max_iter": 1000,
              "ipopt.tol": 1e-2,
              "ipopt.constr_viol_tol": 1e-3, 
              "expand": True, 

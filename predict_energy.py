@@ -143,8 +143,9 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     data = pd.concat(df_list, ignore_index=True)
     # Assuming success is defined as having non-zero average_energy and average_velocity
     # This line might be redundant if 'success' accurately flags all and only successful instances
-    data = data[data['success'] == True] 
+    data = data[(data['success']) == True & (data['delta_h'] - 0.52 <= 0.1)] 
     return data
+
 
 
 def get_features_targets(data):
@@ -173,19 +174,47 @@ def predict_energy_using_poly_model_alpha(alpha_h, V, poly_model):
     return poly_model.predict(input_features)[0]  # Assuming the model returns a 2D array and we're interested in the first value.
 
 
-def make_pareto_front():
+def make_pareto_front(data):
+    # Negate average_velocity for "maximization"
+    objectives = data[['average_velocity', 'average_energy']].copy()
+    objectives['average_velocity'] = -objectives['average_velocity']
+    
+    # Perform non-dominated sorting on the objectives
+    nds = NonDominatedSorting().do(objectives.to_numpy(), only_non_dominated_front=True)
+    
+    # Select rows that are part of the Pareto front
+    pareto_front_rows = data.iloc[nds]
+    
+    # Correctly negate average_velocity back after sorting
+    #pareto_front_rows['average_velocity'] = -pareto_front_rows['average_velocity']
+    
+    # Create DataFrame with only the intended columns
+    pareto_df = pareto_front_rows[['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy']]
+    
+    return pareto_df
 
-  
-    objectives = data[['average_velocity', 'average_energy']].to_numpy()
-    objectives[:, 0] = -objectives[:, 0]  # Negate average_velocity for "maximization"
 
-    nds = NonDominatedSorting().do(objectives, only_non_dominated_front=True)
-    pareto_points = objectives[nds]
-    pareto_points[:, 0] = -pareto_points[:, 0]  # Convert back after negation
-    # Optional: Convert Pareto points to DataFrame for a nicer table view
-    pareto_df = pd.DataFrame(pareto_points, columns=['average_velocity', 'average_energy'])
-    print(pareto_df)
+def make_pareto_front_pred(data_pred):
+    # Negate average_velocity for "maximization"
+    objectives = data_pred[['average_velocity', 'predicted_energy']].copy()
+    objectives['average_velocity'] = -objectives['average_velocity']
+    
+    # Perform non-dominated sorting on the objectives
+    nds = NonDominatedSorting().do(objectives.to_numpy(), only_non_dominated_front=True)
+    
+    # Select rows that are part of the Pareto front
+    pareto_front_rows = data_pred.iloc[nds]
+    
+    # Correctly negate average_velocity back after sorting
+    #pareto_front_rows['average_velocity'] = -pareto_front_rows['average_velocity']
+    
+    # Create DataFrame with only the intended columns
+    pareto_df = pareto_front_rows[['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'predicted_energy']]
+    
+    return pareto_df
 
+
+    """
     # Since we're minimizing average_energy and maximizing average_velocity, ensure correct orientation
     plt.scatter(pareto_df['average_velocity'], pareto_df['average_energy'])
     plt.xlabel('Average Velocity')
@@ -193,9 +222,7 @@ def make_pareto_front():
     plt.title('Pareto Front')
     plt.gca().invert_yaxis()  # If lower average_energy values are better
     plt.show()
- 
 
-    """
     # Extract objectives and parameters
     objectives_and_params = data[['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy']].to_numpy()
     # In this context, assuming we want to maximize average_velocity and minimize average_energy
@@ -214,8 +241,69 @@ def make_pareto_front():
     print(pareto_df_sorted)
     """
 
+def plot_pareto_fronts(actual_pareto_df, predicted_pareto_points):
+    plt.figure(figsize=(10, 6))
+
+    # Plot actual Pareto front
+    plt.scatter(actual_pareto_df['average_velocity'], actual_pareto_df['average_energy'], color='blue', label='Actual Pareto Front')
+
+    # Plot predicted Pareto front
+    plt.scatter(predicted_pareto_points['average_velocity'], predicted_pareto_points['predicted_energy'], color='red', label='Predicted Pareto Front', marker='x')
+
+    plt.xlabel('Average Velocity')
+    plt.ylabel('Average Energy')
+    plt.title('Predicted vs. Actual Pareto Front')
+    plt.gca().invert_yaxis()  # Assuming lower average_energy values are better
+    plt.legend()
+    plt.show()
 
 
+def predict_and_save(directory_path, file_prefix, num_files, poly_model, output_directory):
+
+    os.makedirs(output_directory, exist_ok=True)
+
+    for i in range(num_files):
+        file_path = os.path.join(directory_path, f"{file_prefix}{i}.csv")
+        df = pd.read_csv(file_path)
+        
+        # Assuming 'alpha_h', 'omega_h', 'delta_h', 'average_velocity' are your features
+        features = df[['alpha_h', 'omega_h', 'delta_h', 'average_velocity']]
+        
+        # Predict energy for each row in the DataFrame
+        predicted_energies = poly_model.predict(features)
+        
+        # Add the predictions to the DataFrame
+        df['predicted_energy'] = predicted_energies
+        
+        # Define the output file path
+        output_file_path = os.path.join(output_directory, f"predicted_{file_prefix}_{i}.csv")
+        
+        # Save the DataFrame with predictions to a new file
+        df.to_csv(output_file_path, index=False)
+
+        print(f"Processed and saved predictions for {file_path}")
+
+
+
+def plot_gait_parameter_influence(pareto_actual, pareto_predicted, parameter_name):
+    fig, ax1 = plt.subplots(figsize=(12, 6))
+
+    # Plotting for the actual Pareto front
+    color = 'tab:blue'
+    ax1.set_xlabel(parameter_name)
+    ax1.set_ylabel('Velocity', color=color)
+    ax1.scatter(pareto_actual[parameter_name], pareto_actual['average_velocity'], color=color, label='Actual Velocity')
+    ax1.tick_params(axis='y', labelcolor=color)
+    
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+    color = 'tab:red'
+    ax2.set_ylabel('Energy', color=color)  # we already handled the x-label with ax1
+    ax2.scatter(pareto_actual[parameter_name], pareto_actual['average_energy'], color=color, label='Actual Energy')
+    ax2.tick_params(axis='y', labelcolor=color)
+    
+    fig.tight_layout()  # to make sure the layout doesn't get messed up
+    plt.title(f'Actual Data: {parameter_name} Influence on Velocity and Energy')
+    plt.show()
 
 
 def plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_range, typical_values):
@@ -255,39 +343,124 @@ def plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_
     plt.show()
 
 
-
-
-
 if __name__ == "__main__":
 
     directory_path = "/home/augustsb/MPC2D/results_2802"
-    file_prefix = "chunk_results_"
+    directory_path_predictions = "/home/augustsb/MPC2D/prediction_results_2802"
 
+    file_prefix = "chunk_results_"
+    file_prefix_predictions = "predicted_chunk_results_"
 
     data = load_and_preprocess_data(directory_path, file_prefix, 16)
+    data_pred = load_and_preprocess_data(directory_path_predictions, file_prefix_predictions, 16)
 
 
-    X, y = get_features_targets(data)
-    #X, y = get_features_targets_alpha(data)
+    #X, y = get_features_targets(data)
+    X, y = get_features_targets_alpha(data)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    model = train_polynomial_regression(X, y, X_test, y_test) #Decent
+    #model = train_polynomial_regression(X, y, X_test, y_test) #Decent
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
     #model = train_neural_network(X, y, X_test, y_test) #Best
 
-    typical_values = {'alpha_h': 30*np.pi/180, 'omega_h': 150*np.pi/180, 'delta_h': 40*np.pi/180, 'average_velocity': 0.35}
-    
-    alpha_h_range = np.linspace(0, 90*np.pi/180, 100)
-    omega_h_range = np.linspace(0, 210*np.pi/180, 100)
-    delta_h_range = np.linspace(0, 90*np.pi/180, 100)
-    V_range = np.linspace(0.0, 2.0, 100)
 
-    plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_range, typical_values)
 
-    make_pareto_front()
-  
+
+
+
+
+    #Pareto stuff
+    """
+
+    pareto_df = make_pareto_front(data)
+    pareto_df_pred = make_pareto_front_pred(data_pred)
+
+    pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
+    pareto_df_pred_sorted = pareto_df_pred.sort_values(by='predicted_energy', ascending=True)
+
+
+    pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
+
+
+    pareto_df_pred_sorted.to_csv('pareto_df_pred_sorted.csv', index=False)
+
+ 
+    plot_pareto_fronts(pareto_df, pareto_df_pred)
+
+
+    # Assuming actual_pareto_df and predicted_pareto_df are your dataframes
+    plt.figure(figsize=(10, 6))
+
+    # Actual Pareto Front
+    plt.scatter(pareto_df['average_velocity'], pareto_df['average_energy'],
+                color='blue', alpha=0.5, label='Actual')
+
+    # Predicted Pareto Front
+    plt.scatter(pareto_df_pred['average_velocity'], pareto_df_pred['predicted_energy'] if 'predicted_energy' in pareto_df_pred else pareto_df_pred['average_energy'],
+                color='red', alpha=0.5, label='Predicted')
+
+    plt.xlabel('Average Velocity')
+    plt.ylabel('Average Energy')
+    plt.title('Overlap of Actual and Predicted Pareto Fronts')
+    plt.legend()
+    plt.gca().invert_yaxis()  # If applicable, to visualize lower energy values as better
+    plt.show()
+
+
+    plt.figure(figsize=(10, 6))
+
+   # Example: alpha_h vs. average_velocity
+    plt.scatter(pareto_df['alpha_h'], pareto_df['average_energy'],
+                color='blue', alpha=0.5, label='Actual alpha_h')
+    plt.scatter(pareto_df_pred['alpha_h'], pareto_df_pred['predicted_energy'],
+                color='red', alpha=0.5, label='Predicted alpha_h')
+
+    plt.xlabel('alpha_h')
+    plt.ylabel('Average Energy')
+    plt.title('Alpha_h Influence on Energy')
+    plt.legend()
+    plt.show()
+
+    # Example: omega_h vs. average_energy
+    plt.scatter(pareto_df['omega_h'], pareto_df['average_energy'],
+                color='blue', alpha=0.5, label='Actual omega_h')
+    plt.scatter(pareto_df_pred['omega_h'], pareto_df_pred['predicted_energy'],
+                color='red', alpha=0.5, label='Predicted omega_h')
+
+    plt.xlabel('omega_h')
+    plt.ylabel('Average Energy')
+    plt.title('Omega_h Influence on Energy')
+    plt.legend()
+    plt.show()
+
+
+    # Example: delta_h vs. average_energy
+    plt.scatter(pareto_df['delta_h'], pareto_df['average_energy'],
+                color='blue', alpha=0.5, label='Actual delta_h')
+    plt.scatter(pareto_df_pred['delta_h'], pareto_df_pred['predicted_energy'],
+                color='red', alpha=0.5, label='Predicted delta_h')
+
+    plt.xlabel('delta_h')
+    plt.ylabel('Average Energy')
+    plt.title('delta_h Influence on Energy')
+    plt.legend()
+    plt.show()
+
+    """
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

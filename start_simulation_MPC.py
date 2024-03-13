@@ -38,25 +38,28 @@ def start_simulation(mode):
     y_int = controller_params['y_int0']
     theta_z = np.zeros(n)
     theta_x0_dot = params['theta_x0_dot']
-    p_CM = params['p_CM0']
+    #p_CM = params['p_CM0']
+    p_CM = np.array([0,0,0])
     p_CM_dot = params['p_CM0_dot'] 
 
     
-    target = np.array([29.0 , 0.0, 0.0])
-    #target = np.array([3.0 , 0.0, 0.0])
+    #target = np.array([29.0 , 0.0, 0.0])
+    target = np.array([20.0 , 0.0, 0.0])
     #num_obstacles = 8
     #rea_size = (31, 8)
     #min_distance_to_start_target = 2.0
     #obstacles = generate_random_obstacles(num_obstacles, area_size, p_CM, target, min_distance_to_start_target)
 
     #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
-    """
+   
     obstacles = [
-        {'center': (10, 1.8, 0), 'radius': 1.5},  # First obstacle
-        {'center': (10, -1.8, 0), 'radius': 1.5}, # Second obstacle
+        {'center': (15, 1.8, 0), 'radius': 1.60},  # First obstacle
+        {'center': (15, -1.8, 0), 'radius': 1.60}, # Second obstacle
     ]
-    """
+    
  
+    """
+
     obstacles = [
         {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
         {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
@@ -69,11 +72,13 @@ def start_simulation(mode):
         {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
     ]
 
+    """
+
 
     dt = 0.05  #Update frequency simulation
     mpc_dt = 1 #Update frequency mpc
     k = 1 #desired step length
-    initial_N = 10 # Initial prediction horizon
+    initial_N = 15 # Initial prediction horizon
     N = initial_N
     N_min = 2
     V_min = 0.2
@@ -91,6 +96,8 @@ def start_simulation(mode):
     tot_solver_time = 0
     num_mpc_solutions = 0
     next_mpc_update_time = mpc_dt
+    mpc_start_time = 25
+    mpc_active = False
  
   
     P = generate_initial_path(p_CM, target, k)
@@ -107,58 +114,66 @@ def start_simulation(mode):
     P = interpolate_path(P, N)
     """
 
-    result_queue = Queue()
+    if mpc_active:
 
-    if (mode == 'Distance'):
-        mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params,
-                                                                       N, k, result_queue, P))
-        mpc_thread.start()
-        try:
-            P_sol, solver_time = result_queue.get()  # This will block until a solution is available
-            tot_solver_time += solver_time
-            num_mpc_solutions += 1
-        except:
-            print("Failed to generate initial waypoints")
+        result_queue = Queue()
 
-    
-    if (mode == 'Energy'):
-        mpc_thread = threading.Thread(target=mpc_energy_efficiency, args=(p_CM, p_CM_dot, target, obstacles, params,
-                                                                           controller_params, N, k, result_queue, P, all_params))
-        mpc_thread.start()
+        if (mode == 'Distance'):
+            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params,
+                                                                        N, k, result_queue, P))
+            mpc_thread.start()
+            try:
+                P_sol, solver_time = result_queue.get()  # This will block until a solution is available
+                tot_solver_time += solver_time
+                num_mpc_solutions += 1
+            except:
+                print("Failed to generate initial waypoints")
+
         
-        try:
-            result = result_queue.get()  # This will block until a solution is available
+        if (mode == 'Energy'):
+            mpc_thread = threading.Thread(target=mpc_energy_efficiency, args=(p_CM, p_CM_dot, target, obstacles, params,
+                                                                            controller_params, N, k, result_queue, P, all_params))
+            mpc_thread.start()
+            
+            try:
+                result = result_queue.get()  # This will block until a solution is available
 
-            # Retrieve common results
-            P_sol = result["sol_waypoints"]
-            sol_alpha_h = result["sol_alpha_h"]
-            solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
+                # Retrieve common results
+                P_sol = result["sol_waypoints"]
+                sol_alpha_h = result["sol_alpha_h"]
+                solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
 
-            # Update controller params based on the retrieved solution
-            controller_params.update({'alpha_h': sol_alpha_h[0]})  # Example for alpha_h
+                # Update controller params based on the retrieved solution
+                controller_params.update({'alpha_h': sol_alpha_h[0]})  # Example for alpha_h
 
-            #valid_entries = data_all[(data_all['alpha_h'] == sol_alpha_h[0]) & (data_all['average_velocity'] >= V_min)]
-            #optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
-            #controller_params.update({'omega_h': optimal_entry['omega_h']})
-            #controller_params.update({'delta_h': optimal_entry['delta_h']})
+                #valid_entries = data_all[(data_all['alpha_h'] == sol_alpha_h[0]) & (data_all['average_velocity'] >= V_min)]
+                #optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
+                #controller_params.update({'omega_h': optimal_entry['omega_h']})
+                #controller_params.update({'delta_h': optimal_entry['delta_h']})
 
 
 
-            if "sol_omega_h" in result and "sol_delta_h" in result:
-                # These values are only present if all_params was True
-                sol_omega_h = result["sol_omega_h"]
-                sol_delta_h = result["sol_delta_h"]
-                sol_V = result["sol_V"]
-                controller_params.update({'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0]})
+                if "sol_omega_h" in result and "sol_delta_h" in result:
+                    # These values are only present if all_params was True
+                    sol_omega_h = result["sol_omega_h"]
+                    sol_delta_h = result["sol_delta_h"]
+                    sol_V = result["sol_V"]
+                    controller_params.update({'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0]})
 
-            # Aggregate solver time and count
-            tot_solver_time += solver_time
-            num_mpc_solutions += 1
-        except:
-            print("Failed to generate initial waypoints")
+                # Aggregate solver time and count
+                tot_solver_time += solver_time
+                num_mpc_solutions += 1
+            except:
+                print("Failed to generate initial waypoints")
+
+        waypoint_params = init_waypoint_parameters(P_sol.T)
 
     
-    waypoint_params = init_waypoint_parameters(P_sol.T)
+    else:
+        waypoint_params = init_waypoint_parameters(P[:N,:])
+
+
+    #waypoint_params = init_waypoint_parameters(P_sol.T)
     waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
     cur_alpha_path = waypoint_params['cur_alpha_path']
     theta_x0 = np.full(n, cur_alpha_path)
@@ -176,8 +191,10 @@ def start_simulation(mode):
         while not simulation_over:
             
             current_time = t
+            if (current_time >= mpc_start_time):
+                mpc_active = True
             # Check if it's time to start or update the MPC calculation
-            if (current_time >= next_mpc_update_time and N > N_min):
+            if (current_time >= next_mpc_update_time and mpc_active and N > N_min):
              
                 if mpc_thread is None or not mpc_thread.is_alive():
                 
@@ -227,7 +244,11 @@ def start_simulation(mode):
                         sol_omega_h = result["sol_omega_h"]
                         sol_delta_h = result["sol_delta_h"]
                         controller_params.update({'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0]})
-                    
+
+                    print("sol_omega_h:", sol_omega_h[0])
+                    print("sol_alpha_h:", sol_alpha_h[0])
+                    print("sol_delta_h:", sol_delta_h[0])
+
                 elif (mode == 'Distance'):
                     P_sol, solver_time = result_queue.get_nowait()  # This will not block
 
@@ -271,7 +292,16 @@ def start_simulation(mode):
             p_CM_previous = np.copy(p_CM)
             p_CM_list.append(p_CM_previous.tolist())  # Assuming p_CM is a numpy array
 
+            if (not mpc_active and current_time >= next_mpc_update_time):
+                    P = generate_initial_path(p_CM, target, k)
+                    P = np.squeeze(P)
+                    N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
+                    waypoint_params = init_waypoint_parameters(P[:N,:])
+                    next_mpc_update_time += mpc_dt  # Schedule next update
+            
+            
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+                
 
             if target_reached:
                 simulation_over = True
@@ -328,8 +358,8 @@ def print_results(mode, tot_energy, total_distance, average_speed, avg_solver_ti
 
 if __name__ == "__main__":
     #modes = ['Distance', 'Energy']
-    #modes = ['Distance']
-    modes = ['Energy']
+    modes = ['Distance']
+    #modes = ['Energy']
     results = {}
 
     for mode in modes:

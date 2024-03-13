@@ -21,7 +21,7 @@ from torch.utils.data import DataLoader, TensorDataset
 class PyTorchMLP(nn.Module):
     def __init__(self):
         super(PyTorchMLP, self).__init__()
-        self.fc1 = nn.Linear(4, 128)  # Assuming input features are of size 2
+        self.fc1 = nn.Linear(1, 128)  # Assuming input features are of size 2
         self.relu = nn.ReLU()
         self.fc2 = nn.Linear(128, 1)  # Assuming a single output
         
