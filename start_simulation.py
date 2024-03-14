@@ -17,6 +17,8 @@ def start_simulation():
     n = params['n']
     l = params['l']
 
+    waypoints = np.array([0,0,0], [2,0,0])
+
     controller_params = init_controller_parameters(n,l)
     waypoint_params = init_waypoint_parameters()
     

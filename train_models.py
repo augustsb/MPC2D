@@ -129,4 +129,10 @@ def train_polynomial_regression(X, y, X_test, y_test, degree=2):
     print(f"Polynomial Regression - Mean Squared Error: {mse_poly}")
     print(f"Polynomial Regression - R-squared: {r2_poly}")
     # Extract components if needed for further analysis
+    # Print the intercept
+    linear_model = poly_model.named_steps['linearregression']
+    # Now you can safely print the intercept and coefficients
+    print(f"Intercept: {linear_model.intercept_}")
+    print(f"Coefficients: {linear_model.coef_}")
+    
     return poly_model

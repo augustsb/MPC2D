@@ -7,40 +7,8 @@ from predict_energy import load_and_preprocess_data, find_optimal_configuration
 import traceback
 
 
-coefficients_alpha = MX([0.0, -0.39706975, -7.71259023, 0.25644525, 22.35470889, 8.08533434])
-intercept_alpha = MX(0.0859436060997259)
 
-
-data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
-
-
-
-def object_function_all_params_lookup(X,  N,  alpha_h,  V_min):
-
-    f = 0
-
-    for i in range(N-1):
-        segment_length = sumsqr(X[:, i+1] - X[:, i])
-
-        alpha_h_i = alpha_h[i]
-        
-        # Retrieve the optimal entry from your dataset
-        optimal_entry = find_optimal_configuration(data_all, alpha_h_i, V_min)
-
-        if optimal_entry is not None:
-            # Use the energy value from the optimal configuration
-            predicted_average_energy = optimal_entry['average_energy']
-            predicted_average_velocity = optimal_entry['average_velocity']
-
-            # Calculate predicted time for segment
-            predicted_time = segment_length / predicted_average_velocity
-            # Update the objective
-            f += predicted_average_energy * predicted_time
-        else:
-
-            break
-
-    return f
+#data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
 
 
 def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
@@ -85,7 +53,8 @@ def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
 
 
 
-def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, all_params):
+def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P):
+
 
 
     
@@ -162,14 +131,7 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
     opti.set_initial(omega_h[0], omega_h0)
     opti.set_initial(delta_h[0], delta_h0)
 
-
-
-
     f_dist, f_energy = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
-    
-    #f_energy = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
-    #f = object_function_all_params_lookup(X,  N,  alpha_h,  min_velocity)
-    #f = object_function(X, N)
 
     opti.minimize(f_dist + f_energy)
     #opti.minimize(10 * f_energy)
@@ -182,13 +144,12 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
              "ipopt.tol": 1e-2,
              "ipopt.constr_viol_tol": 1e-3, 
              "expand": True, 
-             "ipopt.linear_solver": "mumps",
+             #"ipopt.linear_solver": "mumps",
              #"ipopt.linear_solver": "spral",
     }  
     opti.solver('ipopt', opts)
 
  
-
     """
     opts = {
         "qpsol": "qrqp",  # Specify qrqp as the QP solver
@@ -213,9 +174,6 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
     """
 
 
-
-
-
     try:
         sol = opti.solve()
 
@@ -231,19 +189,15 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
             "solver_time": solver_time
         }
 
-
-
-        if all_params:
-            sol_omega_h = sol.value(omega_h)
-            sol_delta_h = sol.value(delta_h)
-            sol_V  =   sol.value(V)
-            # Adding additional parameters only if all_params is True
-            result_data.update({
+        sol_omega_h = sol.value(omega_h)
+        sol_delta_h = sol.value(delta_h)
+        sol_V  =   sol.value(V)
+        # Adding additional parameters only if all_params is True
+        result_data.update({
                 "sol_omega_h": sol_omega_h,
                 "sol_delta_h": sol_delta_h,
                 "sol_V": sol_V,
-            })
-
+        })
 
 
         result_queue.put(result_data)

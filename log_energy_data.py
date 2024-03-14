@@ -10,22 +10,33 @@ from casadi import Function, integrator, vertcat, MX
 import matplotlib.pyplot as plt
 from draw_snake_robot import draw_snake_robot
 from concurrent.futures import ProcessPoolExecutor
+from predict_energy import load_and_preprocess_data
 from filelock import Timeout, FileLock
 import traceback
 import os
 import random
 
 
-def generate_random_parameter_combinations(alpha_h_values, omega_h_values, delta_h_values):
+def generate_random_parameter_combinations_random(alpha_h_values, omega_h_values, delta_h_values):
     all_combinations = [(alpha_h, omega_h, delta_h) for alpha_h in alpha_h_values
                                                        for omega_h in omega_h_values
                                                        for delta_h in delta_h_values]
     random.shuffle(all_combinations)  # Shuffle combinations
     return all_combinations
 
+
+def generate_parameter_combinations_linear(alpha_h_values, omega_h_values, delta_h_values):
+    return [(alpha_h, omega_h, delta_h) for alpha_h in alpha_h_values
+                                         for omega_h in omega_h_values
+                                         for delta_h in delta_h_values]
+
+
+
 def divide_into_chunks(all_combinations, num_chunks):
     chunk_size = len(all_combinations) // num_chunks + (len(all_combinations) % num_chunks > 0)
     return [all_combinations[i:i + chunk_size] for i in range(0, len(all_combinations), chunk_size)]
+
+
 
 def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results"):
     results = []
@@ -43,6 +54,36 @@ def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results"):
     pd.DataFrame(results).to_csv(chunk_filename, index=False)
 
 
+def mark_chunk_as_processed(chunk_id, processed_chunks_file='processed_chunks.txt'):
+    with open(processed_chunks_file, 'a') as file:
+        file.write(f"{chunk_id}\n")
+
+def get_processed_chunks(processed_chunks_file='processed_chunks.txt'):
+    if not os.path.exists(processed_chunks_file):
+        return set()
+    with open(processed_chunks_file, 'r') as file:
+        return {int(line.strip()) for line in file}
+    
+def divide_dataframe_into_chunks(df, num_chunks):
+    chunk_size = len(df) // num_chunks + (len(df) % num_chunks > 0)
+    return [df.iloc[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
+
+def process_chunk_and_save(df_chunk, chunk_id):
+    # Process each row in the DataFrame chunk as a simulation run
+    results = []
+    for index, row in df_chunk.iterrows():
+        simulation_results = run_simulation(row['alpha_h'], row['omega_h'], row['delta_h'])
+        results.append({
+            'alpha_h': row['alpha_h'],
+            'omega_h': row['omega_h'],
+            'delta_h': row['delta_h'],
+            **simulation_results
+        })
+    
+    # Save this chunk's results
+    chunk_filename = f"reprocessed_chunk_results_{chunk_id}.csv"
+    pd.DataFrame(results).to_csv(chunk_filename, index=False)
+
 
 def run_simulation(alpha_h, omega_h, delta_h):
     # Initialization
@@ -57,8 +98,9 @@ def run_simulation(alpha_h, omega_h, delta_h):
     prev_theta_dot = theta_x0_dot
     theta_z = np.zeros(n)
     
-    waypoints = np.array([[0, 0, 0], [3, 3, 0]])
-    target = [3, 3, 0]
+    waypoints = np.array([[0, 0, 0], [2, 0, 0], [4, 2 ,0], [6, 3, 0]])
+    target = waypoints[-1,:]
+    print(target)
     obstacles = [{'center': (2, 3, 0), 'radius': 1},]
 
     waypoint_params = init_waypoint_parameters(waypoints)
@@ -70,7 +112,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
     # Simulation loop
 
     tot_energy = 0
-    start_time, stop_time, dt = 0, 30,  0.05
+    start_time, stop_time, dt = 0, 40,  0.05
     t = start_time
     current_time = 0  # Initialize current time
     warm_up_time = 2  # Warm-up time in seconds
@@ -113,7 +155,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
 
-            if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 5):
+            if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 10):
                 success = False
                 simulation_over = True
  
@@ -129,7 +171,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
                  success = True
                  simulation_over = True
 
-            #draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, alpha_h)
+            #draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, None, None)
             #plt.pause(0.01)
 
         effective_simulation_duration = t - collect_time
@@ -175,6 +217,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
 
 
 
+
 def run_and_save_simulation(alpha_h, omega_h, delta_h, filename="results.csv"):
     simulation_results = run_simulation(alpha_h, omega_h, delta_h)
     
@@ -199,6 +242,7 @@ def run_and_save_simulation(alpha_h, omega_h, delta_h, filename="results.csv"):
             df_to_append.to_csv(filename, mode='a', header=False, index=False)
         
 
+"""
 def main():
 
     num_processes = os.cpu_count()  # Or specify the number of processes you want to use
@@ -226,23 +270,36 @@ def main():
     for future in futures:
         future.result()
 
-    """
-    with ProcessPoolExecutor(max_workers=num_processes) as executor:
-        futures = []
-        for alpha_h in alpha_h_values:
-            for omega_h in omega_h_values:
-                for delta_h in delta_h_values:
-                    future = executor.submit(run_and_save_simulation, alpha_h, omega_h, delta_h, filename)
-                    futures.append(future)
-
-        for future in futures:
-            future.result()  # Wait for all submitted tasks to complete
-
-    """
 
     print("All simulations completed and results saved.")
 
- 
+"""
+
+
+
+def main():
+
+    data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
+
+
+    num_processes = os.cpu_count()  # Determine the number of processes to use
+    num_chunks = num_processes  # Adjust the multiplication factor as needed
+    
+    # Divide the successful simulation data into chunks
+    df_chunks = divide_dataframe_into_chunks(data_all, num_chunks)
+    
+    # Process each chunk in parallel
+    with ProcessPoolExecutor(max_workers=num_processes) as executor:
+        futures = [executor.submit(process_chunk_and_save, chunk, chunk_id) 
+                   for chunk_id, chunk in enumerate(df_chunks)]
+
+        # Optional: Wait for all futures to complete
+        for future in futures:
+            future.result()  # This will block until the task is completed
+
+    print("All reprocessed simulations completed and results saved.")
+
+
 if __name__ == '__main__':
     main()
 
@@ -250,10 +307,11 @@ if __name__ == '__main__':
 
 
 
+
+
 """
 # Initialize an empty DataFrame to store results
-columns = ['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy', 'success']
-results_df = pd.DataFrame(columns=columns)
+# Prepare data to be saved
 
 # Define the step size in degrees
 step_size_deg = 10
@@ -286,23 +344,25 @@ for alpha_h in alpha_h_range:
             # Run your simulation
             simulation_results = run_simulation(alpha_h, omega_h, delta_h)
             # Append results to the DataFrame
-            results_df = results_df.append({
-                'alpha_h': alpha_h,
-                'omega_h': omega_h,
-                'delta_h': delta_h,
-                **simulation_results  # Unpack simulation results directly into the DataFrame row
-            }, ignore_index=True)
+            data_to_save = {
+                    'alpha_h': alpha_h,
+                    'omega_h': omega_h,
+                    'delta_h': delta_h,
+                    **simulation_results
+                }
+            
+            df_to_append = pd.DataFrame([data_to_save])
             
             # Increment simulation counter
             simulation_counter += 1
             
-            # Save periodically
-            if simulation_counter % save_interval == 0:
-                results_df.to_csv('results.csv', index=False)
-                print(f"Saved results after {simulation_counter} simulations.")
+            ## Save periodically
+            #if simulation_counter % save_interval == 0:
+               # data_to_save.to_csv('results.csv', index=False)
+               # print(f"Saved results after {simulation_counter} simulations.")
 
 # Final save to ensure all results are stored
-results_df.to_csv('results.csv', index=False)
+df_to_append.to_csv('results.csv', index=False)
 print("All simulation results saved.")
 
 

@@ -119,22 +119,99 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     return data
 
 """
-
-def find_optimal_configuration(data_all, alpha_h_constraint, V_min):
+"""
+def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V, prei):
     # Ensure correct logical operations for filtering with Pandas
-
     alpha_h_i_value = float(alpha_h_constraint)
 
-    valid_entries = data_all[(data_all['alpha_h'] <= alpha_h_i_value) & 
-                             (data_all['average_velocity'] >= V_min)]
+    valid_entries = data_all[(data_all['success'] == True) & 
+                             (data_all['alpha_h'] <= alpha_h_i_value) & 
+                             (abs(data_all['average_velocity']) >= V_min) & 
+                             (abs(data_all['average_velocity']) <= V_max)]
+
+    #valid_entries = data_all[(data_all['alpha_h'] <= alpha_h_i_value)]
+
     
     if not valid_entries.empty:
         # Find the entry with minimum average energy
-        optimal_entry = valid_entries.loc[valid_entries['average_energy'].idxmin()]
+        #optimal_entry = valid_entries.loc[abs(valid_entries['average_energy']).idxmin()]
+
+        valid_entries['velocity_diff'] = np.abs(valid_entries['average_velocity'] - sol_V)
+        optimal_entry = valid_entries.loc[valid_entries['velocity_diff'].idxmin()]
+        #return optimal_entry.drop('velocity_diff', axis=1)
         return optimal_entry
+
     else:
-        # Handle case where no entry matches the constraints
+        # Second attempt: No valid entries found; look for the closest entry above the alpha_h constraint
+        closest_above_entries = data_all[(data_all['alpha_h'] > alpha_h_i_value) &
+                                          (abs(data_all['average_velocity']) >= V_min) & 
+                                          (abs(data_all['average_velocity']) <= V_max)]
+        
+        if not closest_above_entries.empty:
+            # Calculate the difference without adding it to the DataFrame
+            closest_above_entries['alpha_h_diff'] = closest_above_entries['alpha_h'] - alpha_h_i_value
+            min_diff_index = closest_above_entries['alpha_h_diff'].idxmin()
+            closest_entry = closest_above_entries.loc[min_diff_index]
+            # No need to drop 'alpha_h_diff' since we're not returning the entire DataFrame
+            return closest_entry
+        else:
+            # No entries found that satisfy the velocity constraints
+            return None
+        
+
+"""
+
+"""
+def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V, predicted_energy):
+    alpha_h_i_value = float(alpha_h_constraint)
+
+    valid_entries = data_all[(data_all['success'] == True) & 
+                             (data_all['alpha_h'] <= alpha_h_i_value) & 
+                             (np.abs(data_all['average_velocity']) >= V_min) & 
+                             (np.abs(data_all['average_velocity']) <= V_max)]
+
+    if not valid_entries.empty:
+        # Calculate the difference in velocity and energy from the solution
+        valid_entries['velocity_diff'] = np.abs(valid_entries['average_velocity'] - sol_V)
+        valid_entries['energy_diff'] = np.abs(valid_entries['average_energy'] - predicted_energy)
+
+        # Combine the differences into a single metric, e.g., by summing them
+        # You might need to normalize or scale these differences if they are on very different scales
+        valid_entries['combined_diff'] = valid_entries['velocity_diff'] + valid_entries['energy_diff']
+        
+        # Find the entry with the minimum combined difference
+        optimal_entry = valid_entries.loc[valid_entries['combined_diff'].idxmin()]
+        return optimal_entry.drop(['velocity_diff', 'energy_diff', 'combined_diff'], axis=1, errors='ignore')
+
+    else:
+        # If no valid entries are found in the first attempt, you can either return None or 
+        # implement logic to relax constraints slightly and retry, depending on your application's needs.
         return None
+
+"""
+
+def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max):
+    # Ensure 'predicted_energy' is a scalar if it's wrapped in a list or similar
+
+    # Filter entries based on 'alpha_h', 'V_min', and 'V_max'
+    valid_entries = data_all[
+        (data_all['success'] == True) &
+        (data_all['alpha_h'] <= alpha_h_constraint) &
+        (data_all['average_velocity'] >= V_min) &
+        (data_all['average_velocity'] <= V_max)
+    ]
+
+    valid_entries = valid_entries.copy()
+
+    if not valid_entries.empty:
+        optimal_entry_index = valid_entries['average_energy'].abs().idxmin()
+        optimal_entry = valid_entries.loc[optimal_entry_index]
+        #return optimal_entry.drop('velocity_diff', axis=1)
+        return optimal_entry
+    
+    else:
+        return None
+        
 
 
 def load_and_preprocess_data(directory_path, file_prefix, num_files):
@@ -143,7 +220,12 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     data = pd.concat(df_list, ignore_index=True)
     # Assuming success is defined as having non-zero average_energy and average_velocity
     # This line might be redundant if 'success' accurately flags all and only successful instances
-    data = data[(data['success']) == True & (data['delta_h'] - 0.52 <= 0.1)] 
+    #data = data[(data['success']) == True & (data['delta_h'] == 0.523599)] 
+
+    data = data[(data['success']) == True] 
+    #data['average_energy'] = data['average_energy'].abs()
+    #data['average_velocity'] = data['average_velocity'].abs()
+
     return data
 
 
@@ -154,8 +236,8 @@ def get_features_targets(data):
     return X, y
 
 def get_features_targets_alpha(data):
-    X = data[['alpha_h', 'average_velocity']]
-    y = data[['average_energy']]
+    X = data[['predicted_energy']]
+    y = data[['average_energy']] 
     return X, y
 
 
@@ -267,7 +349,8 @@ def predict_and_save(directory_path, file_prefix, num_files, poly_model, output_
         df = pd.read_csv(file_path)
         
         # Assuming 'alpha_h', 'omega_h', 'delta_h', 'average_velocity' are your features
-        features = df[['alpha_h', 'omega_h', 'delta_h', 'average_velocity']]
+        #features = df[['alpha_h', 'omega_h', 'delta_h', 'average_velocity']]
+        features = df[['alpha_h', 'average_velocity']]
         
         # Predict energy for each row in the DataFrame
         predicted_energies = poly_model.predict(features)
@@ -347,23 +430,35 @@ if __name__ == "__main__":
 
     directory_path = "/home/augustsb/MPC2D/results_2802"
     directory_path_predictions = "/home/augustsb/MPC2D/prediction_results_2802"
+    directory_path_reprocessed = "/home/augustsb/MPC2D/reprocessed_results_2802"
+    directory_path_predictions_reprocessed = "/home/augustsb/MPC2D/predictions_reprocessed_results_2802"
 
     file_prefix = "chunk_results_"
     file_prefix_predictions = "predicted_chunk_results_"
+    file_prefix_reprocessed = "reprocessed_chunk_results_"
+
+
 
     data = load_and_preprocess_data(directory_path, file_prefix, 16)
     data_pred = load_and_preprocess_data(directory_path_predictions, file_prefix_predictions, 16)
+    data_new = load_and_preprocess_data(directory_path_reprocessed, file_prefix_reprocessed, 16)
+    data_new_pred = load_and_preprocess_data(directory_path_predictions_reprocessed, 'predicted_reprocessed_chunk_results__', 16)
 
 
     #X, y = get_features_targets(data)
-    X, y = get_features_targets_alpha(data)
+    X, y = get_features_targets_alpha(data_new_pred)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     #model = train_polynomial_regression(X, y, X_test, y_test) #Decent
+
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
-    #model = train_neural_network(X, y, X_test, y_test) #Best
+    model = train_neural_network(X, y, X_test, y_test) #Best
+
+    #predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
+
+
 
 
 
