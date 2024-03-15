@@ -8,38 +8,44 @@ from extract_states import extract_states
 from init_waypoint_parameters import init_waypoint_parameters
 from calculate_pathframe_state import calculate_pathframe_state
 import numpy as np
-from generate_random_obstacles import generate_random_obstacles
+from obstacle_methods import generate_random_obstacles, filter_obstacles
 from MPC_shortest_path import mpc_shortest_path
 from MPC_energy_efficiency import mpc_energy_efficiency
 from MPC_energy_efficiency_alpha import mpc_energy_efficiency_alpha
 import threading
 from queue import Queue, Empty  # Note the import of Empty here
-from waypoint_methods import  generate_initial_path, path_resolution, extend_horizon
+from path_methods import  generate_initial_path, path_resolution, extend_horizon, expand_initial_guess
 import json
 import traceback
-from improved_initial_guess import rrt, interpolate_path
 from visualize_simulation_results import visualize_simulation_results, convert_to_serializable
 from predict_energy import load_and_preprocess_data, find_optimal_configuration
+import pandas as pd
 
 
 #data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
 #Reprocessed
 data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/reprocessed_results_2802", "reprocessed_chunk_results_", 16)
 data_all_predicted =  load_and_preprocess_data("/home/augustsb/MPC2D/predictions_reprocessed_results_2802", "predicted_reprocessed_chunk_results__", 16)
+pareto_df = pd.read_csv("/home/augustsb/MPC2D/data_sorted_by_average_energy.csv")
 
 
-def calculate_predicted_mpc_energy(alpha_h_i, V_i):
-    intercept_alpha =  [4.59732694]
-    coefficients_alpha = [0.0, -15.11378222, -18.90442604,  8.39899105,  44.96279529, 13.19096712]
-    linear_terms = vertcat(alpha_h_i,  V_i)
-    squared_terms = vertcat(alpha_h_i**2,  V_i**2)
-    interaction_terms = vertcat(alpha_h_i*V_i)
-    all_terms = vertcat(1, linear_terms, squared_terms, interaction_terms)  # Include 1 for the intercept
+def exponential_push_to_optimal(current_params, optimal_params, smoothing_factor):
+    """
+    Gradually adjusts the current gait parameters towards the optimal values using exponential smoothing.
 
-    predicted_average_energy = intercept_alpha + np.dot(coefficients_alpha, all_terms) 
-    return predicted_average_energy
-
-
+    :param current_params: Dictionary of the current gait parameters ('omega_h', 'delta_h', 'alpha_h').
+    :param optimal_params: Dictionary of the optimal gait parameters obtained from the optimization.
+    :param smoothing_factor: Smoothing factor (lambda) controlling the adjustment rate (0 < lambda < 1).
+    :return: Updated gait parameters.
+    """
+    updated_params = {}
+    for param in ['omega_h', 'delta_h', 'alpha_h']:
+        current_value = current_params[param]
+        optimal_value = optimal_params[param]
+        new_value = current_value + smoothing_factor * (optimal_value - current_value)
+        updated_params[param] = new_value
+    
+    return updated_params
 
 
 def start_simulation(mode):
@@ -100,8 +106,8 @@ def start_simulation(mode):
     initial_N = 10 # Initial prediction horizon
     N = initial_N
     N_min = 2
-    V_min = 0.3
-    V_max = 0.8
+    V_min = 0.4
+    V_max = 0.7
 
 
 
@@ -115,8 +121,9 @@ def start_simulation(mode):
     tot_energy = 0
     tot_solver_time = 0
     num_mpc_solutions = 0
+    num_measurements = 0
     next_mpc_update_time = mpc_dt
-    mpc_start_time = 2
+    mpc_start_time = 0
     mpc_active = True
  
   
@@ -126,6 +133,8 @@ def start_simulation(mode):
          N = P.shape[0] - 1
     initial_N = N
     N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
+    goal = P[N-1,:]
+
 
     """
     start_point = tuple(p_CM.tolist())  # Convert p_CM (if it's a numpy array) to tuple
@@ -139,8 +148,8 @@ def start_simulation(mode):
         result_queue = Queue()
 
         if (mode == 'Distance'):
-            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params,
-                                                                        N, k, result_queue, P))
+            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, goal, obstacles, params, controller_params,
+                                                                        N, k, result_queue, P.T, None))
             mpc_thread.start()
             try:
                 P_sol, solver_time = result_queue.get()  # This will block until a solution is available
@@ -153,7 +162,7 @@ def start_simulation(mode):
         if (mode == 'Energy_alpha'):
 
             mpc_thread = threading.Thread(target=mpc_energy_efficiency_alpha, args=(p_CM, p_CM_dot, target, obstacles, params,
-                                                                            controller_params, N, k, result_queue, P))
+                                                                            controller_params, N, k, result_queue, P.T, None))
             mpc_thread.start()
             
             try:
@@ -199,6 +208,7 @@ def start_simulation(mode):
 
 
         waypoint_params = init_waypoint_parameters(P_sol.T)
+        prev_solution = P_sol.T
 
     
     else:
@@ -233,6 +243,10 @@ def start_simulation(mode):
                     P = generate_initial_path(p_CM, target, k)
                     P = np.squeeze(P)
                     N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
+                    goal = P[N-1,:]
+                    prev_solution = expand_initial_guess(prev_solution, N, goal)
+                    filtered_obstacles = filter_obstacles(p_CM, obstacles, N)
+
                     
                     """
                     start_point = tuple(np.array(p_CM.full()).flatten())
@@ -247,11 +261,11 @@ def start_simulation(mode):
                         
                     if (mode == 'Energy_alpha'):
                         mpc_thread = threading.Thread(target=mpc_energy_efficiency_alpha(p_CM, p_CM_dot,  target, obstacles, params, controller_params,
-                                                                                     N, k, result_queue, P))
+                                                                                     N, k, result_queue, P.T, prev_solution.T))
 
                     elif (mode == 'Distance'):
-                        mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM,  target, obstacles, params, controller_params,
-                                                                                       N, k,  result_queue, P))
+                        mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, goal, filtered_obstacles, params, controller_params,
+                                                                                       N, k,  result_queue, P.T, prev_solution.T))
 
                     mpc_thread.start()
                     next_mpc_update_time += mpc_dt  # Schedule next update
@@ -285,23 +299,18 @@ def start_simulation(mode):
                     sol_alpha_h = result["sol_alpha_h"]
                     solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
                     print(sol_alpha_h)
-                    #sol_V = result.get("sol_V", 0)
-                    #predicted_energy = calculate_predicted_mpc_energy(sol_alpha_h[0], sol_V[0])
-                    #print('predicted_energy:', predicted_energy)
-                   # print("Sol_V:", sol_V[0])
-                    #print("sol_alpha:", sol_alpha_h[0])
-                    # Update controller params based on the retrieved solution  # Example for alpha_h
-                    
-                    optimal_entry = find_optimal_configuration(data_all, sol_alpha_h[0], V_min, V_max)
+                    optimal_entry = find_optimal_configuration(pareto_df, sol_alpha_h[0], V_min, V_max)
 
-                    dec_size = 0.05
-                    while (optimal_entry is None and V_min > 0):
-                        optimal_entry = find_optimal_configuration(data_all, sol_alpha_h[0], V_min - dec_size, V_max)
-                        dec_size += 0.05
+                    # Example usage
+                    current_params = {'omega_h': controller_params['omega_h'], 'delta_h': controller_params['delta_h'], 'alpha_h': controller_params['delta_h']}
+                    optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
+                    smoothing_factor = 0.5  # Example smoothing factor
+                    # Update the controller parameters
+                    updated_params = exponential_push_to_optimal(current_params, optimal_params, smoothing_factor)
+                    controller_params.update(updated_params)
 
-                    controller_params.update({'omega_h': optimal_entry['omega_h']}) 
-                    controller_params.update({'delta_h': optimal_entry['delta_h']}) 
-                    controller_params.update({'alpha_h': sol_alpha_h[0]})
+                    #controller_params.update({'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}) 
+
 
 
                 elif (mode == 'Distance'):
@@ -314,6 +323,7 @@ def start_simulation(mode):
 
                 waypoint_params = init_waypoint_parameters(P_sol.T)
                 waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+                prev_solution = P_sol.T
 
                 if target_reached:
                     simulation_over = True
@@ -339,6 +349,7 @@ def start_simulation(mode):
             v0 = r['xf']  # Update the state vector for the next iteration
             t += dt  # Increment time
             tot_energy += energy_func(v0)*dt
+            num_measurements += 1
 
             theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
 
@@ -391,21 +402,23 @@ def start_simulation(mode):
 
 
     avg_solver_time = tot_solver_time / num_mpc_solutions
+    avg_power_usage = tot_energy / num_measurements
 
-    return tot_energy, total_distance_traveled, t, avg_solver_time
+    return tot_energy, avg_power_usage, total_distance_traveled, t, avg_solver_time
 
 
 
 def run_simulation_for_mode(mode):
     # Runs the simulation for the given mode and returns results
-    tot_energy, total_distance, t, avg_solver_time = start_simulation(mode)
-    average_speed = total_distance / t
-    return tot_energy, total_distance, average_speed, avg_solver_time
+    tot_energy, avg_power_usage,  total_distance_traveled, t, avg_solver_time = start_simulation(mode)
+    average_speed = total_distance_traveled / t
+    return tot_energy,  avg_power_usage,  total_distance_traveled, average_speed, avg_solver_time
 
-def print_results(mode, tot_energy, total_distance, average_speed, avg_solver_time):
+def print_results(mode, tot_energy, avg_power, total_distance, average_speed, avg_solver_time):
     # Print the results for the given mode
     print(f"\nResults for {mode} Mode:")
     print(f"Total energy: {tot_energy}")
+    print(f"Avg power: {avg_power}")
     print(f"Total distance traveled: {total_distance} m")
     print(f"Average speed: {average_speed} m/s")
     print(f"Average MPC solver time: {avg_solver_time} s")

@@ -78,9 +78,13 @@ def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_pa
     v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot, y_int_dot)
     #v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot)
 
-    vec = ca.dot(u_x, phi_x_dot)
-    #vec = ca.dot(du_x, phi_x_dot)
-    energy_consumption = ca.sum1(vec)
+
+
+    elementwise_product = u_x * phi_x_dot  # Vector: [u_1*phi_dot_1, ..., u_N*phi_dot_N]
+    # Absolute value of the product vector
+    abs_elementwise_product = ca.fabs(elementwise_product)  # Vector: [|u_1*phi_dot_1|, ..., |u_N*phi_dot_N|]
+    # Sum of absolute values
+    energy_consumption = ca.sum1(abs_elementwise_product)
 
     #return v_dot, phi_x, phi_x_dot
     return v_dot, energy_consumption

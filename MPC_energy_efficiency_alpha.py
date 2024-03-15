@@ -1,4 +1,5 @@
 from casadi import Opti, sumsqr, sqrt, Function, dot, MX, mtimes, Function, fmax, vertcat, Callback, fabs, norm_2
+from obstacle_methods import calculate_min_dist_to_obstacle
 import numpy as np
 import matplotlib.pyplot as plt
 import traceback
@@ -61,10 +62,9 @@ def object_function_alpha(X, alpha_h, V, N, cur_alpha_h):
 
 def object_function(X, N):
 
-    f_dist = MX(0)
+    f_dist = 0
 
     for i in range(N-1):  # Iterate over the horizon, except the last point where there's no next point
-
         segment_length = sumsqr(X[:, i+1] - X[:, i])
         #segment_length = norm_2(X[:, i+1] - X[:, i])
         f_dist += segment_length
@@ -72,38 +72,40 @@ def object_function(X, N):
     return f_dist
 
 
+def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
 
-
-def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P):
-
-
-
-    
-    #alpha_h0 = controller_params['alpha_h']
+    alpha_h0 = controller_params['alpha_h']
     #cur_velocity = np.linalg.norm(p_dot)
-
     #min_velocity = 0.3
     #max_velocity = 1.0
-
     alpha_h_min = 5*np.pi/180
     alpha_h_max = 60*np.pi/180
     #alpha_h_min = 0.08
     #alpha_h_max = 0.50
-
-
     N = initial_N
+    
 
     opti = Opti()  # Create an optimization problem
-
 
     X = opti.variable(3, N)  # Position variables
     #V = opti.variable(N)
     alpha_h = opti.variable(N)
 
-    opti.subject_to(X[:, N-1] == P[N-1,:])
-    opti.subject_to(X[:, 0] == P[0,:])
+    
+    opti.set_initial(X[:,0], P[:,0])
+    opti.set_initial(X[:,N-1], target)
 
-   
+    if (P_sol is not None):
+        for i in range(1, N-1):
+            opti.set_initial(X[:,i], P_sol[:,i])
+    
+    else:
+        for i in range(N):
+            opti.set_initial(X[:,i], P[:,i])
+
+
+    opti.subject_to(X[:, 0] == current_p)
+    opti.subject_to(X[:, N-1] == target)
     for i in range(N):
         opti.subject_to(alpha_h[i] >= alpha_h_min)
         opti.subject_to(alpha_h[i] <= alpha_h_max)
@@ -111,43 +113,30 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         #opti.subject_to(V[i] <= max_velocity)
 
 
-    for i in range(N):  # Clearance constraints for waypoints
+    for i in range(N-1):  # Clearance constraints for waypoints
+        A = X[:, i]
+        B = X[:, i+1]
+        alpha_h_i = alpha_h[i]
         for obstacle in obstacles:
             o_pos = obstacle['center']
             o_rad = obstacle['radius']
+            min_dist_to_obstacle = calculate_min_dist_to_obstacle(A, B, o_pos, o_rad)
+            opti.subject_to(min_dist_to_obstacle >= alpha_h_i)
             #opti.subject_to(norm_2(X[:, i] - o_pos) >= (o_rad + alpha_h[i]))
-            opti.subject_to(sumsqr(X[:, i] - o_pos) >= (o_rad + alpha_h[i])**2)
-            if i < N-1:  # Clearance constraints for midpoints
-                midpoint = (X[:, i] + X[:, i+1]) / 2
+            #opti.subject_to(sumsqr(X[:, i] - o_pos) >= (o_rad + alpha_h[i])**2)
+            #if i < N-1:  # Clearance constraints for midpoints
+             #   midpoint = (X[:, i] + X[:, i+1]) / 2
                 #opti.subject_to(norm_2(midpoint - o_pos) >= (o_rad + alpha_h[i]))
-                opti.subject_to(sumsqr(midpoint - o_pos) >= (o_rad + alpha_h[i])**2)
-
-
-    for i in range(N):
-        opti.set_initial(X[:,i], P[i,:])
-
-    #opti.set_initial(alpha_h[0], alpha_h_max)
-        #opti.set_initial(V[0], cur_velocity)
+              #  opti.subject_to(sumsqr(midpoint - o_pos) >= (o_rad + alpha_h[i])**2)
 
     
     #f = object_function_alpha(X, alpha_h, V, N, alpha_h0)
     f = object_function(X,N)
-
-
-
+    
     opti.minimize(f)
     #opti.minimize(f_dist)
  
-    #Solver options
-    opts = {"verbose": True,
-             "ipopt.print_level": 1,
-             "ipopt.max_iter": 10000,
-             "ipopt.tol": 1e-2,
-             "ipopt.constr_viol_tol": 1e-2, 
-             "expand": True, 
-             #"ipopt.linear_solver": "mumps",
-             #"ipopt.linear_solver": "spral",
-    }  
+    opts = {"verbose": True, "ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-1, "ipopt.constr_viol_tol": 1e-1, "expand": True, "ipopt.sb" : "yes"}  
     opti.solver('ipopt', opts)
 
  
@@ -173,8 +162,6 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
     opti.solver("sqpmethod", opts)
 
     """
-
-
     try:
         sol = opti.solve()
 
@@ -192,7 +179,6 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
             #"sol_V": sol_V
         }
 
-
         result_queue.put(result_data)
 
     except Exception as e:
@@ -205,3 +191,16 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         print("Current position:", opti.debug.value(X[:,0]))
         print("Target position:", opti.debug.value(X[:, N-1]))
         print("Infeasibilities:", opti.debug.show_infeasibilities())
+
+        solver_stats = opti.stats()
+        solver_time = solver_stats.get('t_proc_total', None)
+        #Do something to get rid of error
+        sol_waypoints = P[:N,:]
+        sol_alpha_h = np.full((N,), alpha_h0)  # Set alpha_h to a vector of alpha_h0 values
+        result_data = {
+            "sol_waypoints": sol_waypoints,
+            "sol_alpha_h": sol_alpha_h,
+            "solver_time": solver_time,
+            #"sol_V": sol_V
+        }
+        result_queue.put(result_data)

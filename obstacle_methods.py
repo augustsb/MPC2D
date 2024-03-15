@@ -1,6 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
+from casadi import MX, dot, fmax, fmin, sumsqr, sqrt
 
 def is_too_close(point_a, point_b, min_distance):
     """
@@ -86,17 +87,51 @@ def visualize_obstacles(obstacles, area_size, start, target):
 
 
 
-area_size = (31, 8)  # Define area size (x=0 to x=31, y=+-8)
-start = np.array([0, 0, 0])  # Start position
-target = np.array([29, 0, 0])  # Target position
-min_distance_to_start_target = 2.0
-num_obstacles = 10  # Number of obstacles
 
-# Generate obstacles
-obstacles = generate_random_obstacles(num_obstacles, area_size, start, target, min_distance_to_start_target)
+def calculate_min_dist_to_obstacle(A, B, obstacle_center, obstacle_radius):
+    """
+    CasADi-compatible version to calculate the minimum distance from a line segment AB to a circular obstacle.
+    """
+    # Ensure inputs are CasADi MX symbols
+    A = MX(A)
+    B = MX(B)
+    obstacle_center = MX(obstacle_center)
+    
+    AB = B - A
+    AO = obstacle_center - A
+    AB_norm_sq = dot(AB, AB)
+    AO_dot_AB = dot(AO, AB)
+    
+    # Project AO onto AB to find the closest point (in a CasADi-compatible way)
+    t = AO_dot_AB / AB_norm_sq
+    
+    # Ensure t is within [0, 1] using CasADi fmax and fmin functions
+    t_clamped = fmax(0, fmin(1, t))
+    
+    # Calculate the closest point on AB to the obstacle center
+    closest_point = A + t_clamped * AB
+    
+    # Calculate the squared distance from the closest point to the obstacle center
+    dist_sq_to_center = sumsqr(closest_point - obstacle_center)
+    dist_to_edge = sqrt(dist_sq_to_center) - obstacle_radius
+    
+    return dist_to_edge
 
-# Visualize the generated obstacles and print their details
-visualize_obstacles(obstacles, area_size, start, target)
 
 
+def filter_obstacles(current_p, obstacles, horizon_distance):
+    """
+    Filter obstacles to include only those within a certain horizon distance.
 
+    :param current_p: Current position of the robot (numpy array).
+    :param obstacles: List of obstacles, each described by a dictionary with 'center' and 'radius'.
+    :param horizon_distance: Distance defining the horizon within which obstacles are considered.
+    :return: Filtered list of obstacles within the horizon.
+    """
+    filtered_obstacles = []
+    for obstacle in obstacles:
+        o_pos = np.array(obstacle['center'])
+        distance_to_obstacle = np.linalg.norm(o_pos - current_p)
+        if distance_to_obstacle <= horizon_distance:
+            filtered_obstacles.append(obstacle)
+    return filtered_obstacles

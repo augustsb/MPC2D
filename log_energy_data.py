@@ -38,7 +38,7 @@ def divide_into_chunks(all_combinations, num_chunks):
 
 
 
-def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results"):
+def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results_1503"):
     results = []
     for alpha_h, omega_h, delta_h in chunk:
         simulation_results = run_simulation(alpha_h, omega_h, delta_h)
@@ -68,20 +68,22 @@ def divide_dataframe_into_chunks(df, num_chunks):
     chunk_size = len(df) // num_chunks + (len(df) % num_chunks > 0)
     return [df.iloc[i:i + chunk_size] for i in range(0, len(df), chunk_size)]
 
-def process_chunk_and_save(df_chunk, chunk_id):
-    # Process each row in the DataFrame chunk as a simulation run
+def process_chunk_and_save(chunk, chunk_id, filename_prefix="chunk_results_1503"):
     results = []
-    for index, row in df_chunk.iterrows():
-        simulation_results = run_simulation(row['alpha_h'], row['omega_h'], row['delta_h'])
-        results.append({
-            'alpha_h': row['alpha_h'],
-            'omega_h': row['omega_h'],
-            'delta_h': row['delta_h'],
+    for combination in chunk:
+        alpha_h, omega_h, delta_h = combination
+        simulation_results = run_simulation(alpha_h, omega_h, delta_h)
+        result = {
+            'alpha_h': alpha_h,
+            'omega_h': omega_h,
+            'delta_h': delta_h,
             **simulation_results
-        })
+        }
+        results.append(result)
     
-    # Save this chunk's results
-    chunk_filename = f"reprocessed_chunk_results_{chunk_id}.csv"
+    # Define a unique filename for this chunk
+    chunk_filename = f"{filename_prefix}_{chunk_id}.csv"
+    # Convert results to a DataFrame before saving
     pd.DataFrame(results).to_csv(chunk_filename, index=False)
 
 
@@ -98,7 +100,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
     prev_theta_dot = theta_x0_dot
     theta_z = np.zeros(n)
     
-    waypoints = np.array([[0, 0, 0], [2, 0, 0], [4, 2 ,0], [6, 3, 0]])
+    waypoints = np.array([[0, 0, 0], [2, 0, 0], [4, 2 ,0], [6, 2, 0], [8, 0, 0]])
     target = waypoints[-1,:]
     print(target)
     obstacles = [{'center': (2, 3, 0), 'radius': 1},]
@@ -125,6 +127,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
     simulation_over = 0
     success = False
     effective_simulation_duration = 0  # Initialize here
+    num_measurements = 0
 
     #plt.close('all')
     #plt.ion()  # Turn on interactive plotting mode
@@ -146,6 +149,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
                 # Capture the position of CM right after warm-up phase ends
                 p_CM_dot = np.array(p_CM_dot)
                 if np.array_equal(p_CM_dot, np.zeros(3)):
+                       print('here p_CM_dot')
                        success = False
                        simulation_over = True
                        tot_energy = 0
@@ -155,7 +159,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
 
-            if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 10):
+            if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 20):
                 success = False
                 simulation_over = True
  
@@ -164,12 +168,15 @@ def run_simulation(alpha_h, omega_h, delta_h):
                 if (np.array_equal(p_CM_post_warm_up, np.zeros(3))):
                     p_CM_post_warm_up = np.copy(p_CM)  
                 #velocities.append(np.abs(p_CM_dot))
-                energy = u_func(v0)*dt
+                #energy = u_func(v0)*dt
+                energy = u_func(v0)
                 tot_energy += energy
+                num_measurements += 1
 
-            if target_reached:
-                 success = True
-                 simulation_over = True
+            if (target_reached == True):
+                if (np.array_equal(waypoint_params['waypoints'][waypoint_params['cur_WP_idx']], target)):
+                    success = True
+                    simulation_over = True
 
             #draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, None, None)
             #plt.pause(0.01)
@@ -194,7 +201,8 @@ def run_simulation(alpha_h, omega_h, delta_h):
         if effective_simulation_duration > 0:  # Ensure no division by zero
             simulation_results = {
                 'average_velocity': np.linalg.norm(p_CM - p_CM_post_warm_up) / effective_simulation_duration,
-                'average_energy': tot_energy / effective_simulation_duration,
+                #'average_energy': tot_energy / effective_simulation_duration,
+                'average_energy': tot_energy / num_measurements,
                 'success': success
             }
         else:
@@ -242,40 +250,40 @@ def run_and_save_simulation(alpha_h, omega_h, delta_h, filename="results.csv"):
             df_to_append.to_csv(filename, mode='a', header=False, index=False)
         
 
-"""
+
 def main():
-
+    
     num_processes = os.cpu_count()  # Or specify the number of processes you want to use
-    # Define the step size in degrees and convert to radians, etc.
-    step_size_deg = 5
-  
-    alpha_h_values = np.arange(0, 90 + step_size_deg, step_size_deg) * np.pi / 180
-    omega_h_values = np.arange(0, 210 + step_size_deg, step_size_deg) * np.pi / 180
-    delta_h_values = np.arange(0, 90 + step_size_deg, step_size_deg) * np.pi / 180
+    
 
+    delta_h_values = (0.26, 0.43, 0.52)  # Radians
+    alpha_h_values = np.linspace(5, 60, 55) * np.pi / 180
+    omega_h_values = np.linspace(40, 210, 10) * np.pi / 180
+    
 
-    # Generate random parameter combinations
-    all_combinations = generate_random_parameter_combinations(alpha_h_values, omega_h_values, delta_h_values)
-    # Divide combinations into chunks
+    all_combinations = generate_random_parameter_combinations_random(alpha_h_values, omega_h_values, delta_h_values)
+    # Generate combinations of alpha_h and omega_h with the constant delta_h
+    #all_combinations = [(alpha_h, omega_h, delta_h_values) for alpha_h in alpha_h_values for omega_h in omega_h_values]
+    
+    # Assuming you have a function to divide the combinations into chunks for parallel processing
     chunks = divide_into_chunks(all_combinations, num_processes)
 
-
-    #filename = "parallel_results.csv"
-
-    # Process each chunk in parallel
+    # Assuming you have a function `process_chunk_and_save` that processes each chunk and saves the results
     with ProcessPoolExecutor(max_workers=num_processes) as executor:
         futures = [executor.submit(process_chunk_and_save, chunk, chunk_id) for chunk_id, chunk in enumerate(chunks)]
-
+    
     # Wait for all processes to complete
     for future in futures:
         future.result()
 
-
     print("All simulations completed and results saved.")
 
+if __name__ == '__main__':
+    main()
+
+
+
 """
-
-
 
 def main():
 
@@ -303,6 +311,9 @@ def main():
 if __name__ == '__main__':
     main()
 
+    
+"""
+
 
 
 
@@ -310,6 +321,7 @@ if __name__ == '__main__':
 
 
 """
+
 # Initialize an empty DataFrame to store results
 # Prepare data to be saved
 
@@ -364,10 +376,10 @@ for alpha_h in alpha_h_range:
 # Final save to ensure all results are stored
 df_to_append.to_csv('results.csv', index=False)
 print("All simulation results saved.")
-
-
-
 """
+
+
+
 
 
 

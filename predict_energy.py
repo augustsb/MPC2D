@@ -75,7 +75,7 @@ data_eel = np.array([
 ])
 
 # α [deg] ω [deg/s] δ [deg] υ¯ [m/s] Pavg [W] MY OWN PARETO FRONT
-data = np.array([
+data_pareto_2802 = np.array([
     [0.087266, 3.665191, 0.261799, 0.445039, 0.284728],
     [0.174533, 2.356194, 0.523599, 0.449165, 0.369763],
     [0.174533, 2.443461, 0.523599, 0.464443, 0.391545],
@@ -109,6 +109,26 @@ data = np.array([
     [0.261799, 3.665191, 0.523599, 0.965732, 5.198850]
 ])
 
+
+#alpha_h,omega_h,delta_h,average_velocity,average_energy
+data_pareto_1503 = np.array([
+[0.1050429642403994,2.016824913415669,0.52,0.2070904804438621,0.172324],
+[0.0872664625997164,2.676171519724639,0.52,0.2195266140904656,0.210659],
+[0.0872664625997164,3.005844822879123,0.52,0.2262071357519792,0.23006],
+[0.0872664625997164,2.3464982165701542,0.43,0.2363130781685211,0.233003],
+[0.1050429642403994,2.676171519724639,0.52,0.2421738945061364,0.260877],
+[0.0872664625997164,3.005844822879123,0.43,0.2615310547206524,0.30335199],
+[0.0872664625997164,3.665191429188092,0.52,0.2627696115815181,0.333907],
+[0.1228194658810824,2.3464982165701542,0.52,0.2968670010761164,0.337573],
+[0.1228194658810824,2.676171519724639,0.52,0.318505483646215,0.362949],
+[0.1050429642403994,2.676171519724639,0.43,0.368450404032583,0.437643],
+[0.1050429642403994,3.665191429188092,0.43,0.3825291723356346,0.583123],
+[0.1405959675217654,3.335518126033608,0.52,0.4525266289545842,0.83157],
+[0.1228194658810824,3.665191429188092,0.43,0.5109952285794928,0.984596],
+[0.1583724691624484,3.665191429188092,0.52,0.527471421146379,1.4702],
+[0.2117019740844973,3.335518126033608,0.52,0.5994142531183647,2.40617],
+[0.2117019740844973,3.665191429188092,0.52,0.6828613602396989,4.35946],
+])
 
 """
 def load_and_preprocess_data(directory_path, file_prefix, num_files):
@@ -195,7 +215,6 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max):
 
     # Filter entries based on 'alpha_h', 'V_min', and 'V_max'
     valid_entries = data_all[
-        (data_all['success'] == True) &
         (data_all['alpha_h'] <= alpha_h_constraint) &
         (data_all['average_velocity'] >= V_min) &
         (data_all['average_velocity'] <= V_max)
@@ -207,12 +226,19 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max):
         optimal_entry_index = valid_entries['average_energy'].abs().idxmin()
         optimal_entry = valid_entries.loc[optimal_entry_index]
         #return optimal_entry.drop('velocity_diff', axis=1)
+        print(optimal_entry)
         return optimal_entry
     
     else:
-        return None
-        
+        valid_entries = data_all[
+        (data_all['alpha_h'] <= alpha_h_constraint)
+        ]
+        optimal_entry_index = valid_entries['average_energy'].abs().idxmin()
+        optimal_entry = valid_entries.loc[optimal_entry_index]
+        print(optimal_entry)
+        return optimal_entry
 
+        
 
 def load_and_preprocess_data(directory_path, file_prefix, num_files):
     all_files = [os.path.join(directory_path, f"{file_prefix}{i}.csv") for i in range(num_files)]
@@ -432,118 +458,53 @@ if __name__ == "__main__":
     directory_path_predictions = "/home/augustsb/MPC2D/prediction_results_2802"
     directory_path_reprocessed = "/home/augustsb/MPC2D/reprocessed_results_2802"
     directory_path_predictions_reprocessed = "/home/augustsb/MPC2D/predictions_reprocessed_results_2802"
+    directory_path_1503 = "/home/augustsb/MPC2D/results_1503"
 
     file_prefix = "chunk_results_"
     file_prefix_predictions = "predicted_chunk_results_"
     file_prefix_reprocessed = "reprocessed_chunk_results_"
-
+    file_prefix_1503 = "chunk_results_1503_"
 
 
     data = load_and_preprocess_data(directory_path, file_prefix, 16)
     data_pred = load_and_preprocess_data(directory_path_predictions, file_prefix_predictions, 16)
     data_new = load_and_preprocess_data(directory_path_reprocessed, file_prefix_reprocessed, 16)
     data_new_pred = load_and_preprocess_data(directory_path_predictions_reprocessed, 'predicted_reprocessed_chunk_results__', 16)
+    data_1503 = load_and_preprocess_data(directory_path_1503, file_prefix_1503, 16)
 
 
     #X, y = get_features_targets(data)
-    X, y = get_features_targets_alpha(data_new_pred)
+    #X, y = get_features_targets_alpha(data_1503)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
     #model = train_polynomial_regression(X, y, X_test, y_test) #Decent
 
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
-    model = train_neural_network(X, y, X_test, y_test) #Best
+    #model = train_neural_network(X, y, X_test, y_test) #Best
 
     #predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
 
 
-
-
-
-
-
-
-
     #Pareto stuff
-    """
 
-    pareto_df = make_pareto_front(data)
-    pareto_df_pred = make_pareto_front_pred(data_pred)
+        
+    pareto_df = make_pareto_front(data_1503)
 
     pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
-    pareto_df_pred_sorted = pareto_df_pred.sort_values(by='predicted_energy', ascending=True)
-
 
     pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
 
+    # Now, sort the entire dataset by 'average_energy' in ascending order
+    data_sorted = data_1503.sort_values(by='average_energy', ascending=True)
 
-    pareto_df_pred_sorted.to_csv('pareto_df_pred_sorted.csv', index=False)
-
- 
-    plot_pareto_fronts(pareto_df, pareto_df_pred)
-
-
-    # Assuming actual_pareto_df and predicted_pareto_df are your dataframes
-    plt.figure(figsize=(10, 6))
-
-    # Actual Pareto Front
-    plt.scatter(pareto_df['average_velocity'], pareto_df['average_energy'],
-                color='blue', alpha=0.5, label='Actual')
-
-    # Predicted Pareto Front
-    plt.scatter(pareto_df_pred['average_velocity'], pareto_df_pred['predicted_energy'] if 'predicted_energy' in pareto_df_pred else pareto_df_pred['average_energy'],
-                color='red', alpha=0.5, label='Predicted')
-
-    plt.xlabel('Average Velocity')
-    plt.ylabel('Average Energy')
-    plt.title('Overlap of Actual and Predicted Pareto Fronts')
-    plt.legend()
-    plt.gca().invert_yaxis()  # If applicable, to visualize lower energy values as better
-    plt.show()
+    # Optionally, save the sorted dataset to a new CSV file if needed
+    data_sorted.to_csv('data_sorted_by_average_energy.csv', index=False)
 
 
-    plt.figure(figsize=(10, 6))
 
-   # Example: alpha_h vs. average_velocity
-    plt.scatter(pareto_df['alpha_h'], pareto_df['average_energy'],
-                color='blue', alpha=0.5, label='Actual alpha_h')
-    plt.scatter(pareto_df_pred['alpha_h'], pareto_df_pred['predicted_energy'],
-                color='red', alpha=0.5, label='Predicted alpha_h')
-
-    plt.xlabel('alpha_h')
-    plt.ylabel('Average Energy')
-    plt.title('Alpha_h Influence on Energy')
-    plt.legend()
-    plt.show()
-
-    # Example: omega_h vs. average_energy
-    plt.scatter(pareto_df['omega_h'], pareto_df['average_energy'],
-                color='blue', alpha=0.5, label='Actual omega_h')
-    plt.scatter(pareto_df_pred['omega_h'], pareto_df_pred['predicted_energy'],
-                color='red', alpha=0.5, label='Predicted omega_h')
-
-    plt.xlabel('omega_h')
-    plt.ylabel('Average Energy')
-    plt.title('Omega_h Influence on Energy')
-    plt.legend()
-    plt.show()
-
-
-    # Example: delta_h vs. average_energy
-    plt.scatter(pareto_df['delta_h'], pareto_df['average_energy'],
-                color='blue', alpha=0.5, label='Actual delta_h')
-    plt.scatter(pareto_df_pred['delta_h'], pareto_df_pred['predicted_energy'],
-                color='red', alpha=0.5, label='Predicted delta_h')
-
-    plt.xlabel('delta_h')
-    plt.ylabel('Average Energy')
-    plt.title('delta_h Influence on Energy')
-    plt.legend()
-    plt.show()
-
-    """
+  
 
 
 
