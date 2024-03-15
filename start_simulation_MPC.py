@@ -19,6 +19,7 @@ import json
 import traceback
 from visualize_simulation_results import visualize_simulation_results, convert_to_serializable
 from predict_energy import load_and_preprocess_data, find_optimal_configuration
+from change_gait_params import linear_push_to_optimal, exponential_push_to_optimal
 import pandas as pd
 
 
@@ -28,24 +29,6 @@ data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/reprocessed_results_2
 data_all_predicted =  load_and_preprocess_data("/home/augustsb/MPC2D/predictions_reprocessed_results_2802", "predicted_reprocessed_chunk_results__", 16)
 pareto_df = pd.read_csv("/home/augustsb/MPC2D/data_sorted_by_average_energy.csv")
 
-
-def exponential_push_to_optimal(current_params, optimal_params, smoothing_factor):
-    """
-    Gradually adjusts the current gait parameters towards the optimal values using exponential smoothing.
-
-    :param current_params: Dictionary of the current gait parameters ('omega_h', 'delta_h', 'alpha_h').
-    :param optimal_params: Dictionary of the optimal gait parameters obtained from the optimization.
-    :param smoothing_factor: Smoothing factor (lambda) controlling the adjustment rate (0 < lambda < 1).
-    :return: Updated gait parameters.
-    """
-    updated_params = {}
-    for param in ['omega_h', 'delta_h', 'alpha_h']:
-        current_value = current_params[param]
-        optimal_value = optimal_params[param]
-        new_value = current_value + smoothing_factor * (optimal_value - current_value)
-        updated_params[param] = new_value
-    
-    return updated_params
 
 
 def start_simulation(mode):
@@ -304,9 +287,11 @@ def start_simulation(mode):
                     # Example usage
                     current_params = {'omega_h': controller_params['omega_h'], 'delta_h': controller_params['delta_h'], 'alpha_h': controller_params['delta_h']}
                     optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
+                    step_size = {'omega_h': 1*(np.pi/180), 'delta_h': 1*(np.pi/180), 'alpha_h': 1*(np.pi/180)}  # Example step sizes for each parameter
                     smoothing_factor = 0.5  # Example smoothing factor
                     # Update the controller parameters
-                    updated_params = exponential_push_to_optimal(current_params, optimal_params, smoothing_factor)
+                    #updated_params = exponential_push_to_optimal(current_params, optimal_params, smoothing_factor)
+                    updated_params = linear_push_to_optimal(current_params, optimal_params, step_size)
                     controller_params.update(updated_params)
 
                     #controller_params.update({'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}) 
