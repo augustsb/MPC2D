@@ -34,7 +34,7 @@ def init_controller_parameters(n,l):
     controller_params['K_psi'] = 0.2
     controller_params['sigma_y'] = 0.12
     controller_params['sigma_z'] = 0.09
-    controller_params['delta_z'] = 2*n*l
+    controller_params['delta_z'] = n*l
     #controller_params['delta_y'] = 4*n*l
     controller_params['delta_y'] =  n*l
     controller_params['z_int0'] = 0

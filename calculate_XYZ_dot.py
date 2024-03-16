@@ -28,7 +28,7 @@ def calculate_XYZ_dot(theta_x_dot, theta_z_dot, p_CM_dot, params, theta_x, theta
     # Calculate linear velocities
     x_dot = l * K.T @ (sin_theta_z_diag @ cos_theta_x_diag @ theta_z_dot + cos_theta_z_diag @ sin_theta_x_diag @ theta_x_dot) + e * p_CM_dot[0]
     y_dot = -l * K.T @ (-sin_theta_z_diag @ sin_theta_x_diag @ theta_z_dot + cos_theta_z_diag @ cos_theta_x_diag @ theta_x_dot) + e * p_CM_dot[1]
-    z_dot = l * K.T @ cos_theta_z_diag @ theta_z_dot 
+    z_dot = l * K.T @ cos_theta_z_diag @ theta_z_dot + e * p_CM_dot[2]
     
     # Construct the return vector
     XYZ_dot = vertcat(x_dot, y_dot, z_dot)

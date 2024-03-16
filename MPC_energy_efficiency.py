@@ -57,6 +57,7 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
     alpha_h0 = controller_params['alpha_h']
     omega_h0 = controller_params['omega_h']
     delta_h0 = controller_params['delta_h']
+    #safe_margin = 0.1
 
 
     min_velocity = 0.3
@@ -82,6 +83,7 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
 
     opti.subject_to(X[:, 0] == current_p)
     opti.subject_to(X[:, N-1] == target)
+
 
     for i in range(N):
         opti.subject_to(alpha_h[i] >= alpha_h_min)

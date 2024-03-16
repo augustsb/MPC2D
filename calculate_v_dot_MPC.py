@@ -12,22 +12,31 @@ from calculate_q_dot_dot_CM_USR import calculate_q_dot_dot_CM_USR
 from calculate_f_drag import calculate_f_drag
 from LOS_guidance_3D import LOS_guidance_3D
 
-def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_params, p_pathframe):
+def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_params, p_pathframe, dimension):
 #def calculate_v_dot_MPC(t, current_state, optimal_alpha_h, optimal_omega_h, optimal_delta_h, params, controller_params):
     # Assume params contains all necessary global variables and parameters
     n = params['n']
-    # Extract states from the state vector
-    theta_x = current_state[0:n]                        # Correct
-    p_CM = current_state[n:n+3]                         # Correct
-    theta_x_dot = current_state[n+3:2*n+3]              # Adjusted: starts right after p_CM
-    p_CM_dot = current_state[2*n+3:2*n+6]               # Adjusted: starts right after theta_x_dot
-    y_int = current_state[2*n+6:2*n+7]
 
-    theta_z = np.zeros(n)
-    theta_z_dot = np.zeros(n)
-    z_int = 0
-    #y_int = 0
-    #p_pathframe = np.zeros(3)
+    if dimension == '3D':
+    # Extract states from the state vector
+        theta_x = current_state[0:n]
+        theta_z  = current_state[n:2*n]
+        p_CM = current_state[2*n:2*n+3]
+        theta_x_dot = current_state[2*n+3:3*n+3]   
+        theta_z_dot = current_state[3*n+3:4*n+3]
+        p_CM_dot = current_state[4*n+3:4*n+6] 
+        y_int = current_state[4*n+6:4*n+7]
+        z_int = current_state[4*n+7:4*n+8]
+
+    if dimension == '2D':
+        theta_x = current_state[0:n]
+        p_CM = current_state[n:n+3]
+        theta_x_dot = current_state[n+3:2*n+3]   
+        p_CM_dot = current_state[2*n+3:2*n+6] 
+        y_int = current_state[2*n+6:2*n+7]
+        z_int = 0
+        theta_z = np.zeros(n)
+        theta_z_dot = np.zeros(n)
 
 
 
@@ -56,12 +65,6 @@ def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_pa
     u_x, u_z = calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_x, theta_z, p_CM, params, controller_params, phi_o_x_commanded, phi_o_z_commanded)
     #u_x, u_z = calculate_u_lateral_undulation_MPC(t, phi_x, phi_x_dot,  params, controller_params, optimal_alpha_h, optimal_delta_h, optimal_omega_h)
 
-    #Calculate the actuator torques
-
-    #u_x = u # Assuming (n-1 ) control inputs for u_x
-    u_z = np.zeros(n-1)  # Assuming (n-1) control inputs for u_z
-
-    #u_z = np.zeros(n-1)
 
     du_x, du_z = calculate_actuator_torques_USRFinal(u_x, u_z, theta_x, theta_z, params)
 
@@ -74,9 +77,12 @@ def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_pa
     theta_x_dot_dot, p_CM_dot_dot, theta_z_dot_dot, y_int_dot, z_int_dot  = calculate_q_dot_dot_CM_USR( theta_x_dot, theta_z_dot,  fx, fy, fz, du_x, du_z, params, theta_x, theta_z, controller_params, y_int, z_int, p_pathframe)
     #y_int_dot = 0
 
-    # Calculating v_dot similar to MATLAB code, but using CasADi and Python syntax
-    v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot, y_int_dot)
-    #v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot)
+
+    if dimension == '3D':
+        v_dot = vertcat(theta_x_dot, theta_z_dot, p_CM_dot, theta_x_dot_dot,  theta_z_dot_dot, p_CM_dot_dot, y_int_dot, z_int_dot)
+    
+    if dimension == '2D':
+        v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot, y_int_dot)
 
 
 

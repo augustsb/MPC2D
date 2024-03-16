@@ -1,4 +1,4 @@
-from casadi import MX,  vertcat, integrator, Opti, Function, dot
+from casadi import MX,  vertcat, integrator, Function
 import matplotlib.pyplot as plt
 from init_model_parameters import init_model_parameters
 from init_controller_parameters import init_controller_parameters
@@ -8,18 +8,19 @@ from extract_states import extract_states
 from init_waypoint_parameters import init_waypoint_parameters
 from calculate_pathframe_state import calculate_pathframe_state
 import numpy as np
-from obstacle_methods import generate_random_obstacles, filter_obstacles
+from obstacle_methods import  filter_obstacles
 from MPC_shortest_path import mpc_shortest_path
 from MPC_energy_efficiency import mpc_energy_efficiency
 from MPC_energy_efficiency_alpha import mpc_energy_efficiency_alpha
 import threading
 from queue import Queue, Empty  # Note the import of Empty here
-from path_methods import  generate_initial_path, path_resolution, extend_horizon, expand_initial_guess
+from path_methods import  generate_initial_path, extend_horizon, expand_initial_guess
 import json
+import os
 import traceback
-from visualize_simulation_results import visualize_simulation_results, convert_to_serializable
+from visualize_simulation_results import visualize_simulation_results, visualize_simulation_results_3d, convert_to_serializable
 from predict_energy import load_and_preprocess_data, find_optimal_configuration
-from change_gait_params import linear_push_to_optimal, exponential_push_to_optimal
+from change_gait_params import calculate_coeffs_list, calculate_start_conditions, calculate_end_conditions
 import pandas as pd
 
 
@@ -31,7 +32,7 @@ pareto_df = pd.read_csv("/home/augustsb/MPC2D/data_sorted_by_average_energy.csv"
 
 
 
-def start_simulation(mode):
+def start_simulation(mode, dimension):
     # Initialize parameters
 
     params = init_model_parameters()
@@ -42,20 +43,19 @@ def start_simulation(mode):
     controller_params = init_controller_parameters(n,l)
 
     y_int = controller_params['y_int0']
-    theta_z = np.zeros(n)
+    z_int = controller_params['z_int0']
+    theta_z = params['theta_z0']
     theta_x0_dot = params['theta_x0_dot']
-    #p_CM = params['p_CM0']
-    p_CM = np.array([0,0,0])
+    theta_z0_dot = params['theta_z0_dot']
+    p_CM = params['p_CM0']
     p_CM_dot = params['p_CM0_dot'] 
 
     
-    target = np.array([29.0 , 0.0, 0.0])
-    #target = np.array([20.0 , 0.0, 0.0])
+
     #num_obstacles = 8
     #rea_size = (31, 8)
     #min_distance_to_start_target = 2.0
     #obstacles = generate_random_obstacles(num_obstacles, area_size, p_CM, target, min_distance_to_start_target)
-
     #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
    
     """
@@ -65,26 +65,42 @@ def start_simulation(mode):
     ]
     """
     
- 
-   
+    if dimension == '2D':
+        target = np.array([29.0 , 0.0, 0.0]) #2D
+        obstacles = [
+            {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
+            {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
+            {'center': (6.0, 1.0, 0), 'radius': 1.0},    # o2
+            {'center': (5.0, 4.0, 0), 'radius': 2.0},    # o3
+            {'center': (5.0, -4.0, 0), 'radius': 2.0},   # o4
+            {'center': (25.0, 4.0, 0), 'radius': 2.0},   # o5
+            {'center': (25.0, -4.0, 0), 'radius': 2.0},  # o6
+            {'center': (15.0, 4.0, 0), 'radius': 1.0},   # o7
+            {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
+        ]
 
-    obstacles = [
-        {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
-        {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
-        {'center': (6.0, 1.0, 0), 'radius': 1.0},    # o2
-        {'center': (5.0, 4.0, 0), 'radius': 2.0},    # o3
-        {'center': (5.0, -4.0, 0), 'radius': 2.0},   # o4
-        {'center': (25.0, 4.0, 0), 'radius': 2.0},   # o5
-        {'center': (25.0, -4.0, 0), 'radius': 2.0},  # o6
-        {'center': (15.0, 4.0, 0), 'radius': 1.0},   # o7
-        {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
-    ]
+
+    if dimension == '3D':
+        target = np.array([29.0 , 0.0, 6.0]) #3D
+        obstacles = [
+            {'center': (18.0, -1.0, 4.5), 'radius': 2.0},  # o0
+            {'center': (10.0, 0.0, 1.8), 'radius': 1.5},   # o1
+            {'center': (6.0, 1.0, 3.0), 'radius': 1.0},    # o2
+            {'center': (5.0, 4.0, 4.0), 'radius': 2.0},    # o3
+            {'center': (5.0, -4.0, 4.0), 'radius': 2.0},   # o4
+            {'center': (25.0, 4.0, 4.0), 'radius': 2.0},   # o5
+            {'center': (25.0, -4.0, 4.0), 'radius': 2.0},  # o6
+            {'center': (15.0, 4.0, 2.0), 'radius': 1.0},   # o7
+            {'center': (15.0, -4.0, 2.0), 'radius': 1.0}   # o8
+        ]
+
 
 
 
 
     dt = 0.05  #Update frequency simulation
     mpc_dt = 1 #Update frequency mpc
+    mpc_gait_dt = 4.0
     k = 1 #desired step length
     initial_N = 10 # Initial prediction horizon
     N = initial_N
@@ -99,15 +115,21 @@ def start_simulation(mode):
     t = 0
     p_CM_previous = p_CM
     p_CM_list = []
-    middle_link_list = []
+    #middle_link_list = []
+    all_link_x = []
+    all_link_y = []
+    all_link_z = []
     alpha_h_list = []
     tot_energy = 0
     tot_solver_time = 0
     num_mpc_solutions = 0
     num_measurements = 0
     next_mpc_update_time = mpc_dt
+    next_mpc_gait_update_time = mpc_dt
     mpc_start_time = 0
     mpc_active = True
+    controller_params['transition_in_progress'] = False
+
  
   
     P = generate_initial_path(p_CM, target, k)
@@ -195,19 +217,26 @@ def start_simulation(mode):
 
     
     else:
+
         waypoint_params = init_waypoint_parameters(P[:N,:])
 
 
     #waypoint_params = init_waypoint_parameters(P_sol.T)
     waypoint_params, p_pathframe, target_reached  = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
     cur_alpha_path = waypoint_params['cur_alpha_path']
+    cur_gamma_path = waypoint_params['cur_gamma_path']
     theta_x0 = np.full(n, cur_alpha_path)
 
-    v0 = vertcat(theta_x0, p_CM, theta_x0_dot, p_CM_dot, y_int)
-
-
-    plt.ion()  # Turn on interactive plotting mode
-    fig, ax = plt.subplots()
+    if dimension == '3D':
+        theta_z0 = np.full(n,cur_gamma_path)
+        v0 = vertcat(theta_x0, theta_z0, p_CM, theta_x0_dot, theta_z0_dot, p_CM_dot,  y_int, z_int)
+        plt.ion()  # Turn on interactive plotting mode
+        fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    
+    if dimension == '2D':
+        v0 = vertcat(theta_x0, p_CM, theta_x0_dot, p_CM_dot, y_int)
+        plt.ion()  # Turn on interactive plotting mode
+        fig, ax = plt.subplots()
 
     result_queue = Queue()
     mpc_thread = None
@@ -216,8 +245,10 @@ def start_simulation(mode):
         while not simulation_over:
             
             current_time = t
+
             if (current_time >= mpc_start_time):
                 mpc_active = True
+
             # Check if it's time to start or update the MPC calculation
             if (current_time >= next_mpc_update_time and mpc_active and N > N_min):
              
@@ -229,6 +260,7 @@ def start_simulation(mode):
                     goal = P[N-1,:]
                     prev_solution = expand_initial_guess(prev_solution, N, goal)
                     filtered_obstacles = filter_obstacles(p_CM, obstacles, N)
+                    print(N)
 
                     
                     """
@@ -282,22 +314,27 @@ def start_simulation(mode):
                     sol_alpha_h = result["sol_alpha_h"]
                     solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
                     print(sol_alpha_h)
-                    optimal_entry = find_optimal_configuration(pareto_df, sol_alpha_h[0], V_min, V_max)
+                    if (current_time >= next_mpc_gait_update_time):
 
-                    # Example usage
-                    current_params = {'omega_h': controller_params['omega_h'], 'delta_h': controller_params['delta_h'], 'alpha_h': controller_params['delta_h']}
-                    optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
-                    step_size = {'omega_h': 1*(np.pi/180), 'delta_h': 1*(np.pi/180), 'alpha_h': 1*(np.pi/180)}  # Example step sizes for each parameter
-                    smoothing_factor = 0.5  # Example smoothing factor
-                    # Update the controller parameters
-                    #updated_params = exponential_push_to_optimal(current_params, optimal_params, smoothing_factor)
-                    updated_params = linear_push_to_optimal(current_params, optimal_params, step_size)
-                    controller_params.update(updated_params)
-
-                    #controller_params.update({'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}) 
+                        optimal_entry = find_optimal_configuration(pareto_df, sol_alpha_h[0], V_min, V_max)
 
 
+                        optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
+                        # Example variables - these should be defined based on your specific needs
+                        alpha_h_current, omega_h_current, delta_h_current = controller_params['alpha_h'], controller_params['delta_h'], controller_params['omega_h']
+                        alpha_h_target, omega_h_target, delta_h_target = optimal_params['alpha_h'], optimal_params['omega_h'], optimal_params['delta_h']
 
+                        T = 1.0
+                        start_conditions = calculate_start_conditions(alpha_h_current, omega_h_current, delta_h_current, n, t)
+                        end_conditions = calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T)
+                        coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
+                        controller_params['coeffs_list'] = coeffs_list
+                        controller_params['transition_start_time'] = t
+                        controller_params['transition_in_progress'] = True
+                        next_mpc_gait_update_time += mpc_gait_dt
+
+
+                    
                 elif (mode == 'Distance'):
                     P_sol, solver_time = result_queue.get_nowait()  # This will not block
 
@@ -322,10 +359,21 @@ def start_simulation(mode):
             if mpc_thread is not None and not mpc_thread.is_alive():
                 mpc_thread.join()  # Ensure thread resources are cleaned up if it's finished
 
-    
+            
+            if (controller_params['transition_in_progress'] and t - controller_params['transition_start_time'] >= T):
+                # Update controller params based on the retrieved solution
+                controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
+                controller_params['transition_in_progress'] = False
+
+
             # Integrate to get the next state
-            v = MX.sym('v', 2*n + 7)
-            v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe)
+            if dimension == '3D':
+                v = MX.sym('v', 4*n + 8)
+
+            if dimension == '2D':
+                v = MX.sym('v', 2*n + 7)
+
+            v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, dimension)
             energy_func = Function('energy_func', [v], [energy_consumption])
             opts = {'tf': dt, 'abstol': 1e-4, 'reltol': 1e-4}
             F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
@@ -336,7 +384,8 @@ def start_simulation(mode):
             tot_energy += energy_func(v0)*dt
             num_measurements += 1
 
-            theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
+
+            theta_x, theta_z, p_CM, theta_x_dot, theta_z_dot, p_CM_dot, y_int, z_int = extract_states(v0, n, dimension)
 
             distance_moved = np.linalg.norm(p_CM - p_CM_previous)
             total_distance_traveled += distance_moved
@@ -357,8 +406,11 @@ def start_simulation(mode):
             if target_reached:
                 simulation_over = True
             
-            middle_link_position = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, None, alpha_h=None)
-            middle_link_list.append(middle_link_position.tolist())
+            x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, dimension, None, alpha_h=None)
+            #middle_link_list.append(middle_link_position.tolist())
+            all_link_x.append(x)
+            all_link_y.append(y)
+            all_link_z.append(z)
 
             plt.pause(0.01)
 
@@ -373,7 +425,10 @@ def start_simulation(mode):
 
     log_data = {
     "p_CM_log": p_CM_list,
-    "middle_link_log": middle_link_list,
+    #"middle_link_log": middle_link_list,
+    "all_link_x": all_link_x,
+    "all_link_y": all_link_y,
+    "all_link_z": all_link_z,
     "obstacles": [{"center": obs['center'], "radius": obs['radius']} for obs in obstacles]
     }
 
@@ -381,6 +436,10 @@ def start_simulation(mode):
     serializable_log_data = convert_to_serializable(log_data)
 
     log_file_path = "simulation_log.json"
+    if not os.path.exists(log_file_path):
+         with open(log_file_path, 'w') as file:
+            json.dump({}, file)  # Or any other initial content
+
     with open(log_file_path, 'w') as file:
         json.dump(serializable_log_data, file, indent=4)
 
@@ -393,9 +452,9 @@ def start_simulation(mode):
 
 
 
-def run_simulation_for_mode(mode):
+def run_simulation_for_mode(mode, dimension):
     # Runs the simulation for the given mode and returns results
-    tot_energy, avg_power_usage,  total_distance_traveled, t, avg_solver_time = start_simulation(mode)
+    tot_energy, avg_power_usage,  total_distance_traveled, t, avg_solver_time = start_simulation(mode, dimension)
     average_speed = total_distance_traveled / t
     return tot_energy,  avg_power_usage,  total_distance_traveled, average_speed, avg_solver_time
 
@@ -410,19 +469,28 @@ def print_results(mode, tot_energy, avg_power, total_distance, average_speed, av
 
 
 if __name__ == "__main__":
-    #modes = ['Distance', 'Energy']
+
     #modes = ['Distance']
     #modes = ['Energy']
     modes = ['Energy_alpha']
+    dimension = '2D'
+    #dimension = '3D'
+
     results = {}
 
     for mode in modes:
-        results[mode] = run_simulation_for_mode(mode)
+        results[mode] = run_simulation_for_mode(mode, dimension)
 
     for mode in modes:
         print_results(mode, *results[mode])
 
-    visualize_simulation_results()
+    if dimension == '2D':
+        visualize_simulation_results()
+    
+    if dimension == '3D':
+        visualize_simulation_results_3d()
+
+    
 
     
 

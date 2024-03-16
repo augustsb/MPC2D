@@ -18,6 +18,8 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
     - u_x, u_z: Actuator forces for lateral undulation control.
     - phi_ref_x, phi_ref_z: Reference joint angles.
     """
+
+
     n = params['n']
 
 
@@ -30,44 +32,62 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
     omega_v = controller_params['omega_v']
     delta_v = controller_params['delta_v']
 
- 
-    
+
+    transition_in_progress = controller_params['transition_in_progress']
+    if transition_in_progress:
+        coeffs_list = controller_params['coeffs_list']
+        elapsed_time = t - controller_params['transition_start_time']
+
+
     # Calculate references for joint angles
     phi_ref_x = MX.zeros(n-1)
     phi_ref_z = MX.zeros(n-1)
-    for i in range(n-1):
-        #phi_ref_x[i] = alpha_h * sin(omega_h * t + i * delta_h) - phi_offset_h
-        phi_ref_x[i] = alpha_h * sin(omega_h * t + i * delta_h) - phi_o_x_commanded
-        #phi_ref_z[i] = alpha_v * sin(omega_v * t + i * delta_v + temp) - phi_offset_v
-        phi_ref_z[i] = alpha_v * sin(omega_v * t + i * delta_v) - phi_o_z_commanded
-
-    # Calculate references for joint velocities
     phi_ref_d_x = MX.zeros(n-1)
     phi_ref_d_z = MX.zeros(n-1)
-    for i in range(n-1):
-        phi_ref_d_x[i] = alpha_h * omega_h * cos(omega_h * t + i * delta_h)
-        phi_ref_d_z[i] = alpha_v * omega_v * cos(omega_v * t + i * delta_v)
-
-    # Calculate references for joint accelerations
     phi_ref_dd_x = MX.zeros(n-1)
     phi_ref_dd_z = MX.zeros(n-1)
-    for i in range(n-1):
-        phi_ref_dd_x[i] = -alpha_h * omega_h**2 * sin(omega_h * t + i * delta_h)
-        phi_ref_dd_z[i] = -alpha_v * omega_v**2 * sin(omega_v * t + i * delta_v)
-
-    # Calculate the actuator forces
     u_x = MX.zeros(n-1)
     u_z = MX.zeros(n-1)
-    for i in range(n-1):
-        error_x = phi_ref_x[i] - phi_x[i]
-        error_x_d = phi_ref_d_x[i] - phi_x_dot[i]
-        #u_x[i] = phi_ref_dd_x[i] - Kd_joint * error_x_d - Kp_joint * error_x
-        u_x[i] = - Kd_joint * error_x_d - Kp_joint * error_x
 
-        #error_z = phi_ref_z[i] - phi_z[i]
-        #error_z_d = phi_ref_d_z[i] - phi_z_dot[i]
-        #u_z[i] = phi_ref_dd_z[i] - Kd_joint * error_z_d - Kp_joint * error_z
-        u_z[i] = 0
+    for i in range(n-1):
+
+        if (not transition_in_progress):
+
+
+            phi_ref_x[i] = alpha_h * sin(omega_h * t + i * delta_h) - phi_o_x_commanded
+            phi_ref_z[i] = alpha_v * sin(omega_v * t + i * delta_v) - phi_o_z_commanded
+
+            phi_ref_d_x[i] = alpha_h * omega_h * cos(omega_h * t + i * delta_h)
+            phi_ref_d_z[i] = alpha_v * omega_v * cos(omega_v * t + i * delta_v)
+
+            phi_ref_dd_x[i] = -alpha_h * omega_h**2 * sin(omega_h * t + i * delta_h)
+            phi_ref_dd_z[i] = -alpha_v * omega_v**2 * sin(omega_v * t + i * delta_v)
+
+            error_x = phi_ref_x[i] - phi_x[i]
+            error_x_d = phi_ref_d_x[i] - phi_x_dot[i]
+
+            error_z = phi_ref_z[i] - phi_z[i]
+            error_z_d = phi_ref_d_z[i] - phi_z_dot[i]
+
+            u_x[i] = phi_ref_dd_x[i] - Kd_joint * error_x_d - Kp_joint * error_x
+            u_z[i] = phi_ref_dd_z[i] - Kd_joint * error_z_d - Kp_joint * error_z
+
+        else:
+
+            coeffs = coeffs_list[i]
+            current_pos = coeffs[0] + coeffs[1] * elapsed_time + coeffs[2] * elapsed_time**2 + coeffs[3] * elapsed_time**3 + coeffs[4] * elapsed_time**4 + coeffs[5] * elapsed_time**5
+            current_vel = coeffs[1] + 2 * coeffs[2] * elapsed_time + 3 * coeffs[3] * elapsed_time**2 + 4 * coeffs[4] * elapsed_time**3 + 5 * coeffs[5] * elapsed_time**4
+            current_acc = 2 * coeffs[2] + 6 * coeffs[3] * elapsed_time + 12 * coeffs[4] * elapsed_time**2 + 20 * coeffs[5] * elapsed_time**3
+
+            phi_x_i = phi_x[i]
+            phi_x_i_dot = phi_x_dot[i]
+
+            phi_ref_x_i = current_pos - phi_o_x_commanded
+            error_x = phi_ref_x_i - phi_x_i
+            error_x_d = current_vel - phi_x_i_dot
+
+            u_x[i] =  current_acc - Kd_joint * error_x_d - Kp_joint * error_x
+            u_z[i] = 0
 
 
     return u_x, u_z

@@ -1,3 +1,8 @@
+
+import numpy as np
+
+
+
 def linear_push_to_optimal(current_params, optimal_params, step_size):
     """
     Gradually adjusts the current gait parameters towards the optimal values using linear steps.
@@ -44,3 +49,114 @@ def exponential_push_to_optimal(current_params, optimal_params, smoothing_factor
         updated_params[param] = new_value
     
     return updated_params
+
+
+def calculate_start_conditions(alpha_h, omega_h, delta_h, n, t):
+    """
+    Calculate the start conditions (position, velocity, acceleration) for each joint.
+
+    Args:
+    - alpha_h: Amplitude of the wave.
+    - omega_h: Angular frequency of the wave.
+    - delta_h: Phase offset between consecutive joints.
+    - n: Number of joints.
+    - t: Current time.
+
+    Returns:
+    - start_conditions: A list of dictionaries with 'pos', 'vel', and 'acc' for each joint.
+    """
+    start_conditions = []
+
+    for i in range(n):
+        # Position (angle) of the joint
+        pos = alpha_h * np.sin(omega_h * t + i * delta_h)
+
+        # Velocity of the joint
+        vel = alpha_h * omega_h * np.cos(omega_h * t + i * delta_h)
+
+        # Acceleration of the joint
+        acc = -alpha_h * omega_h**2 * np.sin(omega_h * t + i * delta_h)
+
+        start_conditions.append({'pos': pos, 'vel': vel, 'acc': acc})
+
+    return start_conditions
+
+
+def calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T):
+    """
+    Calculate the end conditions (position, velocity, acceleration) for each joint after time T.
+
+    Args:
+    - alpha_h_target: Target amplitude of the wave.
+    - omega_h_target: Target angular frequency of the wave.
+    - delta_h_target: Target phase offset between consecutive joints.
+    - n: Number of joints.
+    - t: Current time.
+    - T: Duration after which end conditions are calculated.
+
+    Returns:
+    - end_conditions: A list of dictionaries with 'pos', 'vel', and 'acc' for each joint.
+    """
+    end_conditions = []
+
+    for i in range(n):
+        # Position (angle) at the end
+        pos = alpha_h_target * np.sin(omega_h_target * (t + T) + i * delta_h_target)
+
+        # Velocity at the end
+        vel = alpha_h_target * omega_h_target * np.cos(omega_h_target * (t + T) + i * delta_h_target)
+
+        # Acceleration at the end
+        acc = -alpha_h_target * omega_h_target**2 * np.sin(omega_h_target * (t + T) + i * delta_h_target)
+
+        end_conditions.append({'pos': pos, 'vel': vel, 'acc': acc})
+
+    return end_conditions
+
+
+
+def calculate_coeffs_list(start_conditions, end_conditions, T):
+    """
+    Calculates quintic polynomial coefficients for each joint based on start and end conditions.
+
+    Args:
+    - start_conditions: A list of dictionaries for each joint's start conditions {'pos', 'vel', 'acc'}.
+    - end_conditions: A list of dictionaries for each joint's end conditions {'pos', 'vel', 'acc'}.
+    - T: The duration over which to transition from start to end conditions.
+    
+    Returns:
+    - coeffs_list: A list of coefficients for the quintic polynomial for each joint.
+    """
+    coeffs_list = []
+    for i in range(len(start_conditions)):
+        start_pos = start_conditions[i]['pos']
+        start_vel = start_conditions[i]['vel']
+        start_acc = start_conditions[i]['acc']
+        
+        end_pos = end_conditions[i]['pos']
+        end_vel = end_conditions[i]['vel']
+        end_acc = end_conditions[i]['acc']
+        
+        # Setup the equations' matrix
+        M = np.array([
+            [1, 0, 0, 0, 0, 0],
+            [1, T, T**2, T**3, T**4, T**5],
+            [0, 1, 0, 0, 0, 0],
+            [0, 1, 2*T, 3*T**2, 4*T**3, 5*T**4],
+            [0, 0, 2, 0, 0, 0],
+            [0, 0, 2, 6*T, 12*T**2, 20*T**3]
+        ])
+        
+        # Setup the results vector
+        b = np.array([start_pos, end_pos, start_vel, end_vel, start_acc, end_acc])
+        
+        # Solve for the coefficients
+        coeffs = np.linalg.solve(M, b)
+        coeffs_list.append(coeffs)
+        
+    return coeffs_list
+
+
+
+
+

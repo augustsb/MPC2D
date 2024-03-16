@@ -74,6 +74,8 @@ def object_function(X, N):
 
 def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
 
+    print(obstacles)
+
     alpha_h0 = controller_params['alpha_h']
     #cur_velocity = np.linalg.norm(p_dot)
     #min_velocity = 0.3
@@ -83,7 +85,6 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
     #alpha_h_min = 0.08
     #alpha_h_max = 0.50
     N = initial_N
-    
 
     opti = Opti()  # Create an optimization problem
 
