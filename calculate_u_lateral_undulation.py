@@ -36,7 +36,9 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
     transition_in_progress = controller_params['transition_in_progress']
     if transition_in_progress:
         coeffs_list = controller_params['coeffs_list']
+        print(coeffs_list)
         elapsed_time = t - controller_params['transition_start_time']
+        print(elapsed_time)
 
 
     # Calculate references for joint angles
@@ -79,12 +81,13 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
             current_vel = coeffs[1] + 2 * coeffs[2] * elapsed_time + 3 * coeffs[3] * elapsed_time**2 + 4 * coeffs[4] * elapsed_time**3 + 5 * coeffs[5] * elapsed_time**4
             current_acc = 2 * coeffs[2] + 6 * coeffs[3] * elapsed_time + 12 * coeffs[4] * elapsed_time**2 + 20 * coeffs[5] * elapsed_time**3
 
-            phi_x_i = phi_x[i]
-            phi_x_i_dot = phi_x_dot[i]
 
-            phi_ref_x_i = current_pos - phi_o_x_commanded
-            error_x = phi_ref_x_i - phi_x_i
-            error_x_d = current_vel - phi_x_i_dot
+            phi_ref_x[i] = current_pos - phi_o_x_commanded
+            phi_ref_d_x[i] = current_vel
+            phi_ref_dd_x[i] = current_acc
+
+            error_x = phi_ref_x[i] - phi_x[i]
+            error_x_d = phi_ref_d_x[i] - phi_x_dot[i]
 
             u_x[i] =  current_acc - Kd_joint * error_x_d - Kp_joint * error_x
             u_z[i] = 0

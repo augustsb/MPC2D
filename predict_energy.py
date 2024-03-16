@@ -249,7 +249,7 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     #data = data[(data['success']) == True & (data['delta_h'] == 0.523599)] 
 
     data = data[(data['success']) == True] 
-    #data['average_energy'] = data['average_energy'].abs()
+    data['average_energy'] = data['average_energy'].abs()
     #data['average_velocity'] = data['average_velocity'].abs()
 
     return data
@@ -473,34 +473,35 @@ if __name__ == "__main__":
     data_1503 = load_and_preprocess_data(directory_path_1503, file_prefix_1503, 16)
 
 
-    #X, y = get_features_targets(data)
+    data_combined = pd.concat([data, data_new, data_1503], ignore_index=True)
+    X, y = get_features_targets(data_combined)
     #X, y = get_features_targets_alpha(data_1503)
 
-    #X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    #model = train_polynomial_regression(X, y, X_test, y_test) #Decent
+    model = train_polynomial_regression(X, y, X_test, y_test) #Decent
 
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
     #model = train_neural_network(X, y, X_test, y_test) #Best
 
-    #predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
+    predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
 
 
     #Pareto stuff
 
         
-    pareto_df = make_pareto_front(data_1503)
+    #pareto_df = make_pareto_front(data_1503)
 
-    pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
+    #pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
 
-    pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
+    #pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
 
     # Now, sort the entire dataset by 'average_energy' in ascending order
-    data_sorted = data_1503.sort_values(by='average_energy', ascending=True)
+    #data_sorted = data_1503.sort_values(by='average_energy', ascending=True)
 
     # Optionally, save the sorted dataset to a new CSV file if needed
-    data_sorted.to_csv('data_sorted_by_average_energy.csv', index=False)
+    #data_sorted.to_csv('data_sorted_by_average_energy.csv', index=False)
 
 
 

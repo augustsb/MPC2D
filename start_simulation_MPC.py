@@ -120,12 +120,13 @@ def start_simulation(mode, dimension):
     all_link_y = []
     all_link_z = []
     alpha_h_list = []
+    phi_ref_x_list = []
     tot_energy = 0
     tot_solver_time = 0
     num_mpc_solutions = 0
     num_measurements = 0
     next_mpc_update_time = mpc_dt
-    next_mpc_gait_update_time = mpc_dt
+    next_mpc_gait_update_time = 2
     mpc_start_time = 0
     mpc_active = True
     controller_params['transition_in_progress'] = False
@@ -188,7 +189,7 @@ def start_simulation(mode, dimension):
         
         if (mode == 'Energy'):
             mpc_thread = threading.Thread(target=mpc_energy_efficiency, args=(p_CM, p_CM_dot, target, obstacles, params,
-                                                                            controller_params, N, k, result_queue, P))
+                                                                            controller_params, N, k, result_queue, P.T, None))
             mpc_thread.start()
             
             try:
@@ -260,9 +261,7 @@ def start_simulation(mode, dimension):
                     goal = P[N-1,:]
                     prev_solution = expand_initial_guess(prev_solution, N, goal)
                     filtered_obstacles = filter_obstacles(p_CM, obstacles, N)
-                    print(N)
 
-                    
                     """
                     start_point = tuple(np.array(p_CM.full()).flatten())
                     goal_point = tuple(P[N-1, :].tolist())  # Convert P[N-1, :] to tuple
@@ -271,11 +270,11 @@ def start_simulation(mode, dimension):
                     """
 
                     if (mode == 'Energy'):
-                        mpc_thread = threading.Thread(target=mpc_energy_efficiency(p_CM, p_CM_dot,  target, obstacles, params, controller_params,
-                                                                                     N, k, result_queue, P))
+                        mpc_thread = threading.Thread(target=mpc_energy_efficiency(p_CM, p_CM_dot,  goal, obstacles, params, controller_params,
+                                                                                     N, k, result_queue, P.T, prev_solution.T))
                         
                     if (mode == 'Energy_alpha'):
-                        mpc_thread = threading.Thread(target=mpc_energy_efficiency_alpha(p_CM, p_CM_dot,  target, obstacles, params, controller_params,
+                        mpc_thread = threading.Thread(target=mpc_energy_efficiency_alpha(p_CM, p_CM_dot,  goal, obstacles, params, controller_params,
                                                                                      N, k, result_queue, P.T, prev_solution.T))
 
                     elif (mode == 'Distance'):
@@ -295,15 +294,30 @@ def start_simulation(mode, dimension):
                     P_sol = result["sol_waypoints"]
                     sol_alpha_h = result["sol_alpha_h"]
                     solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
-                    sol_V = result["sol_V"]
+                    #sol_V = result.get["sol_V", 0]
                     sol_omega_h = result["sol_omega_h"]
                     sol_delta_h = result["sol_delta_h"]
                     # Update controller params based on the retrieved solution
-                    controller_params.update({'alpha_h': sol_alpha_h[0]})  # Example for alpha_h
-                    controller_params.update({'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0]})
-                    print("sol_delta_h:", sol_delta_h[0])
-                    print("sol_omega_h:", sol_omega_h[0])
-                    print("sol_alpha_h:", sol_alpha_h[0])
+                    #controller_params.update({'alpha_h': sol_alpha_h[0], 'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0]})
+                    #print("sol_delta_h:", sol_delta_h[0])
+                    #print("sol_omega_h:", sol_omega_h[0])
+                    #print("sol_alpha_h:", sol_alpha_h[0])
+                    if (current_time >= next_mpc_gait_update_time):
+
+                        optimal_params = {'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0], 'alpha_h': sol_alpha_h[0]}
+                        # Example variables - these should be defined based on your specific needs
+                        alpha_h_current, omega_h_current, delta_h_current = controller_params['alpha_h'], controller_params['omega_h'], controller_params['delta_h']
+                        alpha_h_target, omega_h_target, delta_h_target = optimal_params['alpha_h'], optimal_params['omega_h'], optimal_params['delta_h']
+
+                        T = 1.0
+                        start_conditions = calculate_start_conditions(alpha_h_current, omega_h_current, delta_h_current, n, t)
+                        end_conditions = calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T)
+   
+                        coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
+                        controller_params['coeffs_list'] = coeffs_list
+                        controller_params['transition_start_time'] = t
+                        controller_params['transition_in_progress'] = True
+                        next_mpc_gait_update_time += mpc_gait_dt
 
                 
                 if (mode == 'Energy_alpha'):
@@ -320,17 +334,18 @@ def start_simulation(mode, dimension):
 
 
                         optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
+                        print(optimal_params)
                         # Example variables - these should be defined based on your specific needs
-                        alpha_h_current, omega_h_current, delta_h_current = controller_params['alpha_h'], controller_params['delta_h'], controller_params['omega_h']
+                        alpha_h_current, omega_h_current, delta_h_current = controller_params['alpha_h'], controller_params['omega_h'], controller_params['delta_h']
                         alpha_h_target, omega_h_target, delta_h_target = optimal_params['alpha_h'], optimal_params['omega_h'], optimal_params['delta_h']
 
-                        T = 1.0
+                        T = 2.0
                         start_conditions = calculate_start_conditions(alpha_h_current, omega_h_current, delta_h_current, n, t)
                         end_conditions = calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T)
                         coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
-                        controller_params['coeffs_list'] = coeffs_list
-                        controller_params['transition_start_time'] = t
-                        controller_params['transition_in_progress'] = True
+                        controller_params.update({'coeffs_list':  coeffs_list})
+                        controller_params.update({'transition_start_time': t})
+                        controller_params.update({'transition_in_progress': True})
                         next_mpc_gait_update_time += mpc_gait_dt
 
 
@@ -361,9 +376,11 @@ def start_simulation(mode, dimension):
 
             
             if (controller_params['transition_in_progress'] and t - controller_params['transition_start_time'] >= T):
+
+                print('finished transition')
                 # Update controller params based on the retrieved solution
                 controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
-                controller_params['transition_in_progress'] = False
+                controller_params.update({'transition_in_progress': False})
 
 
             # Integrate to get the next state
@@ -373,14 +390,16 @@ def start_simulation(mode, dimension):
             if dimension == '2D':
                 v = MX.sym('v', 2*n + 7)
 
-            v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, dimension)
+            v_dot, energy_consumption= calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, dimension)
             energy_func = Function('energy_func', [v], [energy_consumption])
+
             opts = {'tf': dt, 'abstol': 1e-4, 'reltol': 1e-4}
             F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
 
             r = F(x0=v0)
             v0 = r['xf']  # Update the state vector for the next iteration
             t += dt  # Increment time
+
             tot_energy += energy_func(v0)*dt
             num_measurements += 1
 
@@ -471,8 +490,8 @@ def print_results(mode, tot_energy, avg_power, total_distance, average_speed, av
 if __name__ == "__main__":
 
     #modes = ['Distance']
-    #modes = ['Energy']
-    modes = ['Energy_alpha']
+    modes = ['Energy']
+    #modes = ['Energy_alpha']
     dimension = '2D'
     #dimension = '3D'
 

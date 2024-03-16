@@ -1,7 +1,6 @@
 from casadi import Opti, sumsqr, sqrt, Function, dot, MX, mtimes, Function, fmax, vertcat, Callback, fabs, norm_2
 import numpy as np
 import matplotlib.pyplot as plt
-from predict_energy import load_and_preprocess_data, find_optimal_configuration
 from obstacle_methods import calculate_min_dist_to_obstacle
 import traceback
 
@@ -11,13 +10,22 @@ import traceback
 
 
 def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
-
+  
     coefficients = MX([0.00000000e+00, -3.76175305e-01, -1.39811782e-01, -3.33429081e-01,
                       -6.55247864e+00,  1.58587472e-01,  3.77745169e-02,  7.88736135e-02,
                        2.51218324e+01,  2.11785467e-02,  5.88215761e-02, 1.88560740e+00,
                        1.20102405e-01, -6.87588100e+00,  1.97807068e+00])
     
     intercept = MX(0.29915636699839293)
+
+
+    """
+    intercept = MX([1.39159763])
+    coefficients = MX([  0.0, -10.3323507, -1.37228188,   3.438807,     1.63400673,
+                      7.62981978,   1.2775822,   -5.02066006,  36.11928906,  0.18184937,
+                     -0.27449098,   1.39526585,   1.52073914, -17.41987931,  -1.08359748])
+
+    """
     
     f_dist = MX(0)
     f_energy = MX(0)
@@ -32,27 +40,30 @@ def object_function_all_params(X, alpha_h, omega_h, delta_h, V, N):
         alpha_h_i = alpha_h[i]
         omega_h_i = omega_h[i]
         delta_h_i = delta_h[i]
-        #V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
-        V_i = V[i]
+        V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
+        #V_i = V[i] 
+
+    
         # Correct construction of polynomial features for iteration i
         linear_terms = vertcat(alpha_h_i, omega_h_i, delta_h_i, V_i)
         squared_terms = vertcat(alpha_h_i**2, omega_h_i**2, delta_h_i**2, V_i**2)
         interaction_terms = vertcat(alpha_h_i*omega_h_i, alpha_h_i*delta_h_i, alpha_h_i*V_i, omega_h_i*delta_h_i, omega_h_i*V_i, delta_h_i*V_i)
         all_terms = vertcat(1, linear_terms, squared_terms, interaction_terms)  # Include 1 for the intercept
 
+
         predicted_average_energy = intercept + dot(coefficients, all_terms) 
- 
-        #predicted_time = segment_length / V_i
-        #f_time += predicted_time
 
-        f_energy += predicted_average_energy 
+        predicted_time = segment_length / V_i
+        f_time += predicted_time
 
-    return f_dist, f_energy
+        f_energy += predicted_average_energy*predicted_time
+
+    return f_dist, f_energy, f_time
     #return f_energy
 
 
 
-def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P):
+def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
 
     alpha_h0 = controller_params['alpha_h']
     omega_h0 = controller_params['omega_h']
@@ -60,13 +71,13 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
     #safe_margin = 0.1
 
 
-    min_velocity = 0.3
-    max_velocity = 0.7
+    min_velocity = 0.4
+    max_velocity = 1.0
     alpha_h_min = 5*np.pi/180
     alpha_h_max = 90*np.pi/180
     omega_h_min = 40*np.pi/180
     omega_h_max = 210*np.pi/180
-    delta_h_min = 30*np.pi/180
+    delta_h_min = 20*np.pi/180
     delta_h_max = 90*np.pi/180
 
     N = initial_N
@@ -128,9 +139,9 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
             opti.set_initial(X[:,i], P[:,i])
 
 
-    f_dist, f_energy = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
+    f_dist, f_energy, f_time = object_function_all_params(X, alpha_h, omega_h, delta_h, V, N)
 
-    opti.minimize(f_dist + f_energy)
+    opti.minimize(30*f_energy + 100*f_time)
 
 
     opts = {"verbose": True, "ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-1, "ipopt.constr_viol_tol": 1e-1, "expand": True, "ipopt.sb" : "yes"}  
@@ -199,3 +210,22 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
         print("Current position:", opti.debug.value(X[:,0]))
         print("Target position:", opti.debug.value(X[:, N-1]))
         print("Infeasibilities:", opti.debug.show_infeasibilities())
+
+        solver_stats = opti.stats()
+        solver_time = solver_stats.get('t_proc_total', None)
+        #Do something to get rid of error
+        sol_waypoints = P[:N,:]
+        sol_alpha_h = np.full((N,), alpha_h0)  # Set alpha_h to a vector of alpha_h0 values
+        sol_omega_h = np.full((N,), omega_h0)  # Set alpha_h to a vector of alpha_h0 values
+        sol_delta_h = np.full((N,), delta_h0)  # Set alpha_h to a vector of alpha_h0 values
+        result_data = {
+            "sol_waypoints": sol_waypoints,
+            "sol_alpha_h": sol_alpha_h,
+            "solver_time": solver_time,
+            #"sol_V": sol_V
+        }
+        result_data.update({
+                "sol_omega_h": sol_omega_h,
+                "sol_delta_h": sol_delta_h,
+        })
+        result_queue.put(result_data)
