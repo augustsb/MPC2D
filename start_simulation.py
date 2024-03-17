@@ -17,6 +17,7 @@ def start_simulation():
     n = params['n']
     l = params['l']
 
+
     waypoints = np.array([[0,0,0], [2,0,0]])
 
     controller_params = init_controller_parameters(n,l)
@@ -53,14 +54,14 @@ def start_simulation():
 
     # Prepare for real-time plotting
     plt.ion()  # Turn on interactive plotting mode
-    fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+    fig, ax = plt.subplots()
 
 
     t = start_time  # Initialize time
     while t < stop_time:
         
 
-        v = MX.sym('v', 2*n + 5)
+        v = MX.sym('v', 2*n + 7)
         v_dot = calculate_v_dot(t, v, params, controller_params, waypoint_params, p_pathframe)
         opts = {'tf': dt}
         F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
@@ -71,12 +72,12 @@ def start_simulation():
         t += dt  # Increment time
 
         # Extract states and visualize or store data as needed...
-        theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
+        theta_x, theta_z, p_CM, theta_x_dot, theta_z_dot, p_CM_dot, y_int, z_int = extract_states(v0, n, '2D')
 
-        waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params)
+        waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
 
-        draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles)  # Example call
+        x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, '2D', None, alpha_h=None)
         plt.pause(0.05)
       
 

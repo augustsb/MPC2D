@@ -14,6 +14,7 @@ from predict_energy import load_and_preprocess_data
 from filelock import Timeout, FileLock
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import json
+import csv
 import traceback
 import os
 import random
@@ -44,12 +45,13 @@ def run_simulation(alpha_h, omega_h, delta_h):
     v0 = vertcat(theta_x0, p_CM0, theta_x0_dot, p_CM0_dot, y_int0)
 
 
-    start_time, stop_time, dt = 0, 400, 0.05
+    start_time, stop_time, dt = 0, 1200, 0.05
     t = start_time
     last_update_time = 0  # Last time the gait parameters were updated
     transition_period = 1.0
+    T_cycle = 2 * np.pi / omega_h  # Time period of one cycle based on omega_h
     increment_amount = 1*np.pi/180
-    increment_interval = 2
+    increment_interval = T_cycle
     measurement_count = 0
     collecting_data = False  # Flag to indicate if we are in the data collection phase
 
@@ -58,6 +60,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
     measurement_count = 0
     total_energy = 0
     results = []
+
 
     #plt.close('all')
     #plt.ion()  # Turn on interactive plotting mode
@@ -72,6 +75,9 @@ def run_simulation(alpha_h, omega_h, delta_h):
                 p_CM_end = p_CM  # Assuming p_CM is updated in the simulation logic
                 average_velocity = np.linalg.norm(p_CM_end - p_CM_start) / duration
                 average_energy = total_energy / measurement_count
+
+                if (average_energy >= 30):
+                    return results
                 
                 # Store the results
                 results.append({
@@ -93,8 +99,6 @@ def run_simulation(alpha_h, omega_h, delta_h):
                 collecting_data = False
                 total_energy = 0
                 measurement_count = 0
-                if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 20):
-                    return results
 
             # Update gait parameters here
             alpha_h += increment_amount
@@ -114,7 +118,11 @@ def run_simulation(alpha_h, omega_h, delta_h):
         t += dt  # Increment time
 
         theta_x, theta_z, p_CM, theta_x_dot, theta_z_dot, p_CM_dot, y_int, z_int = extract_states(v0, n, '2D')
-        waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+        #waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
+
+        if np.linalg.norm(p_CM_dot) > 5  or np.any(np.abs(theta_x_dot) > 10):
+            return results
+
 
         if t >= last_update_time + transition_period:
             collecting_data = True
@@ -124,7 +132,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
             measurement_count += 1
         
         # Update the robot drawing
-       # x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, '2D', None, alpha_h=None)
+        #x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, '2D', None, alpha_h=None)
         #plt.pause(0.01)
 
      
@@ -141,56 +149,63 @@ def run_simulation(alpha_h, omega_h, delta_h):
 
 
 
-def safe_write_results_to_file(results, filename='simulation_results.json'):
+def safe_write_results_to_csv(results, filename='simulation_results.csv'):
     lock = FileLock(f"{filename}.lock")
     with lock:
-        try:
-            with open(filename, 'r') as file:
-                existing_data = json.load(file)
-        except FileNotFoundError:
-            existing_data = []
+        # Check if the file exists to determine if headers are needed
+        file_exists = os.path.isfile(filename)
         
-        # Add the new results to the existing data
-        if isinstance(results, dict):
-            existing_data.append(results)  # If results is a single dict, append it
-        else:
-            existing_data.extend(results)  # If results is a list, extend the list
-        
-        # Write the updated data back to the file
-        with open(filename, 'w') as file:
-            json.dump(existing_data, file, indent=4)
-
-
-
-def generate_parameter_sets_for_omega(alpha_start, omega_start, omega_end, omega_increment, delta_h):
-    """Generate parameter sets, varying omega_h while keeping others fixed initially."""
-    omega_h_values = np.arange(omega_start, omega_end + omega_increment, omega_increment)
-    return [(alpha_start, omega_h, delta_h) for omega_h in omega_h_values]
-
-
+        with open(filename, 'a', newline='') as file:
+            writer = csv.DictWriter(file, fieldnames=['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy'])
+            if not file_exists:
+                writer.writeheader()  # Write headers if file doesn't exist
+            
+            # If results is a single dict, write it directly; otherwise, write each dict in the list
+            if isinstance(results, dict):
+                writer.writerow(results)
+            else:
+                writer.writerows(results)  # Assuming results is a list of dicts
 
 def run_simulation_wrapper(params):
     results = run_simulation(*params)
-    safe_write_results_to_file([results])  # Assuming results is a dict; wrap it in a list if needed
+    safe_write_results_to_csv(results)  # Adjusted to call the new CSV writing function
+
+
+
+def generate_parameter_sets_for_omega(alpha_start, omega_start, delta_h, num_values):
+    """Generate parameter sets, varying omega_h."""
+    omega_increment = np.radians(1)
+    return [(alpha_start, omega_h, delta_h) for omega_h in np.arange(omega_start, omega_start + num_values * omega_increment, omega_increment)]
+
+
+filename = 'simulation_results.csv'
+
+def find_next_omega_h_start(filename):
+    try:
+        data = pd.read_csv(filename)
+        max_omega_h = data['omega_h'].max()
+        return max_omega_h + np.radians(1)  # Increment by 1 degree in radians
+    except (FileNotFoundError, pd.errors.EmptyDataError):
+        # If the file does not exist or is empty, start from the beginning
+        return 0
 
 def main():
-    alpha_h_start, omega_h_start, delta_h_start = 0, 0, np.radians(40)
-    omega_h_end = np.radians(210)
-    omega_increment = np.radians(1)
-    
-    parameter_sets = generate_parameter_sets_for_omega(alpha_h_start, omega_h_start, omega_h_end, omega_increment, delta_h_start)
-    
-    with ProcessPoolExecutor() as executor:
-        # Using list comprehension to directly submit and process simulations
-        [executor.submit(run_simulation_wrapper, params) for params in parameter_sets]
+    omega_h_start = find_next_omega_h_start(filename)
+    num_processes = os.cpu_count()  # Determine the number of processes to use
+    alpha_h_start, delta_h_start = 0, np.radians(40)
 
-# This ensures the script can be run as a standalone program
+    parameter_sets = generate_parameter_sets_for_omega(alpha_h_start, omega_h_start, delta_h_start, num_processes)
+    
+    # Using ProcessPoolExecutor to parallelize the simulation
+    with ProcessPoolExecutor() as executor:
+        executor.map(run_simulation_wrapper, parameter_sets)
+
 if __name__ == "__main__":
     main()
 
 
-# Example usage
-alpha_h_start, omega_h_start, delta_h_start = 0 * np.pi / 180, 150 * np.pi / 180, 40 * np.pi / 180
-results = run_simulation(alpha_h_start, omega_h_start, delta_h_start)
-print(results)
+
+#alpha_h_start, omega_h_start, delta_h_start = 0, 0.5235987755982988, 0.6981317007977318,
+#results = run_simulation(alpha_h_start, omega_h_start, delta_h_start)
+#print(results)
 

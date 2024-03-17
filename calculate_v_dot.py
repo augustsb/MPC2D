@@ -12,10 +12,11 @@ from calculate_f_drag import calculate_f_drag
 from LOS_guidance_3D import LOS_guidance_3D
 
 #def calculate_v_dot(t, v, params, controller_params, waypoint_params, p_pathframe):
-def calculate_v_dot(t, v, phi_ref_x, phi_ref_d_x, params, controller_params):
+def calculate_v_dot(t, v, params, controller_params, waypoint_params, p_pathframe):
 
     # Assume params contains all necessary global variables and parameters
-    n = params['n']
+    #n = params['n']
+    n = 10
     # Extract states from the state vector
     theta_x = v[0:n]                        # Correct
     p_CM = v[n:n+3]                         # Correct
@@ -46,12 +47,12 @@ def calculate_v_dot(t, v, phi_ref_x, phi_ref_d_x, params, controller_params):
 
     #LOS guidance for waypoint following
 
-    #phi_o_x_commanded = LOS_guidance_3D(theta_x, p_pathframe, y_int,  params, controller_params, waypoint_params)
+    phi_o_x_commanded, phi_o_z_commanded = LOS_guidance_3D(theta_x, theta_z, p_pathframe, y_int, z_int,  params, controller_params, waypoint_params)
     
     #Calculates control input according to lateral undulation without any directional control
 
     #u_x, u_z, phi_ref_x = calculate_u_lateral_undulation(t, phi_x, phi_x_dot,  params, controller_params, phi_o_x_commanded)
-    u_x, u_z = calculate_u_lateral_undulation(t, phi_x, phi_x_dot,  params, controller_params, phi_ref_x, phi_ref_d_x)
+    u_x, u_z = calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_x, theta_z, p_CM, params, controller_params, phi_o_x_commanded, phi_o_z_commanded)
 
     #Calculate the actuator torques
 
@@ -68,7 +69,7 @@ def calculate_v_dot(t, v, phi_ref_x, phi_ref_d_x, params, controller_params):
     # Calculating v_dot similar to MATLAB code, but using CasADi and Python syntax
     v_dot = vertcat(theta_x_dot, p_CM_dot, theta_x_dot_dot, p_CM_dot_dot, y_int_dot)
 
-    return v_dot, phi_x, phi_x_dot
+    return v_dot
 
 
     
