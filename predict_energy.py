@@ -255,9 +255,15 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     return data
 
 
+def load_and_preprocess_data_json(file_path):
+    # Load JSON data into a pandas DataFrame
+    df = pd.read_json(file_path)
+
+    return df
+
 
 def get_features_targets(data):
-    X = data[['alpha_h', 'omega_h', 'delta_h', 'average_velocity']]
+    X = data[['alpha_h', 'average_velocity']]
     y = data[['average_energy']]
     return X, y
 
@@ -459,6 +465,7 @@ if __name__ == "__main__":
     directory_path_reprocessed = "/home/augustsb/MPC2D/reprocessed_results_2802"
     directory_path_predictions_reprocessed = "/home/augustsb/MPC2D/predictions_reprocessed_results_2802"
     directory_path_1503 = "/home/augustsb/MPC2D/results_1503"
+ 
 
     file_prefix = "chunk_results_"
     file_prefix_predictions = "predicted_chunk_results_"
@@ -466,15 +473,21 @@ if __name__ == "__main__":
     file_prefix_1503 = "chunk_results_1503_"
 
 
+
     data = load_and_preprocess_data(directory_path, file_prefix, 16)
     data_pred = load_and_preprocess_data(directory_path_predictions, file_prefix_predictions, 16)
     data_new = load_and_preprocess_data(directory_path_reprocessed, file_prefix_reprocessed, 16)
     data_new_pred = load_and_preprocess_data(directory_path_predictions_reprocessed, 'predicted_reprocessed_chunk_results__', 16)
     data_1503 = load_and_preprocess_data(directory_path_1503, file_prefix_1503, 16)
+    data_1703_path = "/home/augustsb/MPC2D/results_1703/simulation_results.json"
+    data_1703 = load_and_preprocess_data_json(data_1703_path)
 
 
-    data_combined = pd.concat([data, data_new, data_1503], ignore_index=True)
-    X, y = get_features_targets(data_combined)
+    #data_combined = pd.concat([data, data_new, data_1503], ignore_index=True)
+    data_new = pd.concat([data_1703])  # Use ignore_index=Tr
+    data_new = data_new[data_new['average_energy'] <= 11]
+
+    X, y = get_features_targets(data_new)
     #X, y = get_features_targets_alpha(data_1503)
 
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -485,7 +498,7 @@ if __name__ == "__main__":
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
     #model = train_neural_network(X, y, X_test, y_test) #Best
 
-    predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
+    #predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
 
 
     #Pareto stuff

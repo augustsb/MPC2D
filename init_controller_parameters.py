@@ -15,7 +15,10 @@ def init_controller_parameters(n,l):
     # Parameters for gait pattern horizontal
     controller_params['alpha_h'] = 30 * np.pi / 180
     controller_params['omega_h'] = 150 * np.pi / 180
-    controller_params['delta_h'] = 40 * np.pi / 180
+    #controller_params['delta_h'] = 40 * np.pi / 180
+    controller_params['delta_h'] = np.radians(40)
+
+    controller_params['transition_in_progress'] = False
 
     #controller_params['alpha_h'] = 0.174533
     #controller_params['omega_h'] = 2.181662
@@ -40,7 +43,7 @@ def init_controller_parameters(n,l):
     controller_params['z_int0'] = 0
     controller_params['y_int0'] = 0
 
-
+    
 
 
     return controller_params

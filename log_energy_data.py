@@ -130,13 +130,13 @@ def run_simulation(alpha_h, omega_h, delta_h):
     num_measurements = 0
 
     #plt.close('all')
-    #plt.ion()  # Turn on interactive plotting mode
-    #fig, ax = plt.subplots()
+    plt.ion()  # Turn on interactive plotting mode
+    fig, ax = plt.subplots()
 
     try:
         while not simulation_over and t < stop_time:
             v = MX.sym('v', 2*n + 7)
-            v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe)
+            v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, '2D')
             u_func = Function('u_func', [v], [energy_consumption])
             opts = {'tf': dt}
             F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
@@ -155,7 +155,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
                        tot_energy = 0
                 in_warm_up = False  # Mark end of warm-up phase
 
-            theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
+            theta_x, theta_z, p_CM, theta_x_dot, theta_z_dot, p_CM_dot, y_int, z_int = extract_states(v0, n, '2D')
             waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params, controller_params, target)
 
 
@@ -178,14 +178,14 @@ def run_simulation(alpha_h, omega_h, delta_h):
                     success = True
                     simulation_over = True
 
-            #draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, None, None)
-            #plt.pause(0.01)
+            x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, '2D', None, alpha_h=None)
+            plt.pause(0.01)
 
         effective_simulation_duration = t - collect_time
 
-        #plt.ioff()
+        plt.ioff()
 
-        #plt.close()
+        plt.close()
 
 
     except Exception as e:
@@ -249,7 +249,7 @@ def run_and_save_simulation(alpha_h, omega_h, delta_h, filename="results.csv"):
         else:
             df_to_append.to_csv(filename, mode='a', header=False, index=False)
         
-
+"""
 
 def main():
     
@@ -283,7 +283,7 @@ if __name__ == '__main__':
 
 
 
-"""
+
 
 def main():
 
@@ -316,11 +316,6 @@ if __name__ == '__main__':
 
 
 
-
-
-
-
-"""
 
 # Initialize an empty DataFrame to store results
 # Prepare data to be saved
@@ -376,7 +371,7 @@ for alpha_h in alpha_h_range:
 # Final save to ensure all results are stored
 df_to_append.to_csv('results.csv', index=False)
 print("All simulation results saved.")
-"""
+
 
 
 

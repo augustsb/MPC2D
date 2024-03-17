@@ -36,10 +36,7 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
     transition_in_progress = controller_params['transition_in_progress']
     if transition_in_progress:
         coeffs_list = controller_params['coeffs_list']
-        print(coeffs_list)
         elapsed_time = t - controller_params['transition_start_time']
-        print(elapsed_time)
-
 
     # Calculate references for joint angles
     phi_ref_x = MX.zeros(n-1)
@@ -55,7 +52,7 @@ def calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_
 
         if (not transition_in_progress):
 
-
+            #phi_ref_x[i] = alpha_h * sin(omega_h * t + i * delta_h)
             phi_ref_x[i] = alpha_h * sin(omega_h * t + i * delta_h) - phi_o_x_commanded
             phi_ref_z[i] = alpha_v * sin(omega_v * t + i * delta_v) - phi_o_z_commanded
 

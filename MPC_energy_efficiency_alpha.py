@@ -8,34 +8,30 @@ import traceback
 
 #data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
 
-def object_function_alpha(X, alpha_h, V, N, cur_alpha_h):
+def object_function_alpha(X, alpha_h, V, N):
 
-    #coefficients_alpha = MX([0.0, -0.39706975, -7.71259023, 0.25644525, 22.35470889, 8.08533434])
-    #intercept_alpha = MX(0.0859436060997259)
+    #intercept_alpha = MX([4.5667265])
+    #coefficients_alpha = MX([  0.0,   -14.98799005, -18.94456363,   8.3210305,   44.90256676, 13.24315094])
 
-    intercept_alpha = MX([4.5667265])
-    coefficients_alpha = MX([  0.0,   -14.98799005, -18.94456363,   8.3210305,   44.90256676, 13.24315094])
+    intercept = MX([-0.01410301])
+    coefficients = MX([0.0, -0.46846741,  8.31562399,  1.19420623, -70.10820238, 4.32929447, -0.27992981,  77.78954746,  62.29145431, -16.89716558])
 
-    #intercept_alpha =  MX([4.59732694])
-    #coefficients_alpha = MX([0.0, -15.11378222, -18.90442604,  8.39899105,  44.96279529, 13.19096712])
-    
     f_dist = MX(0)
     f_energy = MX(0)
     f_time = MX(0)
-    f_initial_transition = MX(0)
-
     epsilon = 1e-6
-    initial_transition_cost_factor = 5
 
     for i in range(N-1):  # Iterate over the horizon, except the last point where there's no next point
 
         segment_length = sumsqr(X[:, i+1] - X[:, i])
-        #segment_length = norm_2(X[:, i+1] - X[:, i])
         f_dist += segment_length
 
         alpha_h_i = alpha_h[i]
         #V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
         V_i = V[i]
+
+        
+        """
         # Correct construction of polynomial features for iteration i
         linear_terms = vertcat(alpha_h_i,  V_i)
         squared_terms = vertcat(alpha_h_i**2,  V_i**2)
@@ -43,18 +39,25 @@ def object_function_alpha(X, alpha_h, V, N, cur_alpha_h):
         all_terms = vertcat(1, linear_terms, squared_terms, interaction_terms)  # Include 1 for the intercept
 
         predicted_average_energy = intercept_alpha + dot(coefficients_alpha, all_terms)
+        """
 
+        # Extend construction of polynomial features for iteration i to include 3rd-order terms
+        linear_terms = vertcat(alpha_h_i, V_i)
+        squared_terms = vertcat(alpha_h_i**2, V_i**2)
+        cubic_terms = vertcat(alpha_h_i**3, V_i**3)
+        interaction_terms_linear = alpha_h_i * V_i  # 1st order interaction
+        interaction_terms_squared = alpha_h_i**2 * V_i + alpha_h_i * V_i**2  # 2nd order interactions
+        interaction_terms_cubic = alpha_h_i**2 * V_i**2  # Example cubic interaction term (adjust as needed)
+
+        # Combine all terms, adjusting the vector to match your model's expected input
+        all_terms = vertcat(1, linear_terms, squared_terms, cubic_terms,
+                            interaction_terms_linear, interaction_terms_squared, interaction_terms_cubic)
+
+        predicted_average_energy = intercept + dot(coefficients, all_terms)
+        f_energy += predicted_average_energy
  
-        #predicted_time = segment_length / V_i**2
-        #f_time += predicted_time
 
-        f_energy +=  predicted_average_energy**2
-       
-
-    #f_initial_transition = initial_transition_cost_factor * ((alpha_h[0] - cur_alpha_h) ** 2)
-
-    #total_cost = f_dist +  f_energy + f_time + f_initial_transition
-    total_cost = f_dist + 100 * f_energy
+    total_cost = f_dist + f_energy
 
     return total_cost
 
@@ -74,22 +77,19 @@ def object_function(X, N):
 
 def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
 
-    print(obstacles)
-
+    
     alpha_h0 = controller_params['alpha_h']
-    #cur_velocity = np.linalg.norm(p_dot)
-    #min_velocity = 0.3
-    #max_velocity = 1.0
+    v0 = np.linalg.norm(p_dot)
+    min_velocity = 0.3
+    max_velocity = 0.8
     alpha_h_min = 5*np.pi/180
     alpha_h_max = 60*np.pi/180
-    #alpha_h_min = 0.08
-    #alpha_h_max = 0.50
     N = initial_N
 
     opti = Opti()  # Create an optimization problem
 
     X = opti.variable(3, N)  # Position variables
-    #V = opti.variable(N)
+    V = opti.variable(N)
     alpha_h = opti.variable(N)
 
     
@@ -110,8 +110,8 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
     for i in range(N):
         opti.subject_to(alpha_h[i] >= alpha_h_min)
         opti.subject_to(alpha_h[i] <= alpha_h_max)
-        #opti.subject_to(V[i] >= min_velocity)
-        #opti.subject_to(V[i] <= max_velocity)
+        opti.subject_to(V[i] >= min_velocity)
+        opti.subject_to(V[i] <= max_velocity)
 
 
     for i in range(N-1):  # Clearance constraints for waypoints
@@ -131,8 +131,8 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
               #  opti.subject_to(sumsqr(midpoint - o_pos) >= (o_rad + alpha_h[i])**2)
 
     
-    #f = object_function_alpha(X, alpha_h, V, N, alpha_h0)
-    f = object_function(X,N)
+    f = object_function_alpha(X, alpha_h, V, N)
+    #f = object_function(X,N)
     
     opti.minimize(f)
     #opti.minimize(f_dist)
@@ -170,14 +170,14 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         sol_alpha_h = sol.value(alpha_h)
         solver_stats = opti.stats()
         solver_time = solver_stats.get('t_proc_total', None)
-        #sol_V  =   sol.value(V)
+        sol_V  =   sol.value(V)
 
         result_data = {
 
             "sol_waypoints": sol_waypoints,
             "sol_alpha_h": sol_alpha_h,
             "solver_time": solver_time,
-            #"sol_V": sol_V
+            "sol_V": sol_V
         }
 
         result_queue.put(result_data)
@@ -198,10 +198,11 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         #Do something to get rid of error
         sol_waypoints = P[:N,:]
         sol_alpha_h = np.full((N,), alpha_h0)  # Set alpha_h to a vector of alpha_h0 values
+        sol_V = np.full((N,), v0)  # Set alpha_h to a vector of alpha_h0 values
         result_data = {
             "sol_waypoints": sol_waypoints,
             "sol_alpha_h": sol_alpha_h,
             "solver_time": solver_time,
-            #"sol_V": sol_V
+            "sol_V": sol_V
         }
         result_queue.put(result_data)

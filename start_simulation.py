@@ -17,10 +17,10 @@ def start_simulation():
     n = params['n']
     l = params['l']
 
-    waypoints = np.array([0,0,0], [2,0,0])
+    waypoints = np.array([[0,0,0], [2,0,0]])
 
     controller_params = init_controller_parameters(n,l)
-    waypoint_params = init_waypoint_parameters()
+    waypoint_params = init_waypoint_parameters(waypoints)
     
 
     start_time = 0
@@ -42,9 +42,11 @@ def start_simulation():
         'radius': 0.2         # Radius of the obstacle
     }]
 
+    target = np.array([2,0,0])
 
 
-    waypoint_params, p_pathframe = calculate_pathframe_state(p_CM0, waypoint_params)
+
+    waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM0, waypoint_params, controller_params, target)
     # Initial state vector
     v0 = vertcat(theta_x0, p_CM0, theta_x0_dot, p_CM0_dot, y_int0)  # Define these variables
 
@@ -71,7 +73,7 @@ def start_simulation():
         # Extract states and visualize or store data as needed...
         theta_x, p_CM, theta_x_dot, p_CM_dot, y_int = extract_states(v0, n)
 
-        waypoint_params, p_pathframe = calculate_pathframe_state(p_CM, waypoint_params)
+        waypoint_params, p_pathframe, target_reached = calculate_pathframe_state(p_CM, waypoint_params)
 
 
         draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles)  # Example call
