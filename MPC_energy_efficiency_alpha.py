@@ -10,16 +10,16 @@ import traceback
 
 def object_function_alpha(X, alpha_h, V, N):
 
-    #intercept_alpha = MX([4.5667265])
-    #coefficients_alpha = MX([  0.0,   -14.98799005, -18.94456363,   8.3210305,   44.90256676, 13.24315094])
+    intercept = MX([3.46172253])
+    coefficients = MX([0.0, -58.95498468, 1.38894021, 238.37699699, -8.04901411, 1.50078342])
 
-    intercept = MX([-0.01410301])
-    coefficients = MX([0.0, -0.46846741,  8.31562399,  1.19420623, -70.10820238, 4.32929447, -0.27992981,  77.78954746,  62.29145431, -16.89716558])
+    #intercept = MX([-0.01410301])
+    #coefficients = MX([0.0, -0.46846741,  8.31562399,  1.19420623, -70.10820238, 4.32929447, -0.27992981,  77.78954746,  62.29145431, -16.89716558])
 
     f_dist = MX(0)
     f_energy = MX(0)
     f_time = MX(0)
-    epsilon = 1e-6
+    epsilon = 1e-8
 
     for i in range(N-1):  # Iterate over the horizon, except the last point where there's no next point
 
@@ -27,20 +27,15 @@ def object_function_alpha(X, alpha_h, V, N):
         f_dist += segment_length
 
         alpha_h_i = alpha_h[i]
-        #V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
-        V_i = V[i]
-
-        
-        """
+        V_i = V[i] + epsilon  # Add epsilon to avoid division by zero
+        #V_i = V[i]
         # Correct construction of polynomial features for iteration i
         linear_terms = vertcat(alpha_h_i,  V_i)
         squared_terms = vertcat(alpha_h_i**2,  V_i**2)
         interaction_terms = vertcat(alpha_h_i*V_i)
         all_terms = vertcat(1, linear_terms, squared_terms, interaction_terms)  # Include 1 for the intercept
 
-        predicted_average_energy = intercept_alpha + dot(coefficients_alpha, all_terms)
         """
-
         # Extend construction of polynomial features for iteration i to include 3rd-order terms
         linear_terms = vertcat(alpha_h_i, V_i)
         squared_terms = vertcat(alpha_h_i**2, V_i**2)
@@ -52,12 +47,17 @@ def object_function_alpha(X, alpha_h, V, N):
         # Combine all terms, adjusting the vector to match your model's expected input
         all_terms = vertcat(1, linear_terms, squared_terms, cubic_terms,
                             interaction_terms_linear, interaction_terms_squared, interaction_terms_cubic)
+        
+        """
 
+        predicted_time = segment_length / V_i
         predicted_average_energy = intercept + dot(coefficients, all_terms)
+
+        f_time += predicted_time
         f_energy += predicted_average_energy
  
 
-    total_cost = f_dist + f_energy
+    total_cost = 5*f_dist + 10*f_energy + 5*f_time
 
     return total_cost
 
@@ -75,15 +75,15 @@ def object_function(X, N):
     return f_dist
 
 
-def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
+def mpc_energy_efficiency_alpha(current_p, p_dot, target, obstacles, params, controller_params, initial_N, k, result_queue, P, P_sol):
 
     
     alpha_h0 = controller_params['alpha_h']
     v0 = np.linalg.norm(p_dot)
-    min_velocity = 0.3
-    max_velocity = 0.8
+    min_velocity = controller_params['v_min']
+    max_velocity = controller_params['v_max']
     alpha_h_min = 5*np.pi/180
-    alpha_h_max = 60*np.pi/180
+    alpha_h_max = 50*np.pi/180
     N = initial_N
 
     opti = Opti()  # Create an optimization problem
@@ -95,6 +95,7 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
     
     opti.set_initial(X[:,0], P[:,0])
     opti.set_initial(X[:,N-1], target)
+    opti.set_initial(alpha_h[0], 0.26)
 
     if (P_sol is not None):
         for i in range(1, N-1):
@@ -104,25 +105,27 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         for i in range(N):
             opti.set_initial(X[:,i], P[:,i])
 
-
+  
+    #opti.subject_to(alpha_h[0] == alpha_h0)
     opti.subject_to(X[:, 0] == current_p)
     opti.subject_to(X[:, N-1] == target)
     for i in range(N):
-        opti.subject_to(alpha_h[i] >= alpha_h_min)
-        opti.subject_to(alpha_h[i] <= alpha_h_max)
-        opti.subject_to(V[i] >= min_velocity)
-        opti.subject_to(V[i] <= max_velocity)
+        opti.subject_to(opti.bounded(alpha_h_min, alpha_h[i], alpha_h_max))
+        opti.subject_to(opti.bounded(min_velocity, V[i], max_velocity))
 
-
+    clearance_base = 0.1  # Base clearance
+    clearance_velocity_factor = 0.05  # Factor to scale clearance with velocity
     for i in range(N-1):  # Clearance constraints for waypoints
         A = X[:, i]
         B = X[:, i+1]
         alpha_h_i = alpha_h[i]
+        V_i = V[i]
         for obstacle in obstacles:
             o_pos = obstacle['center']
             o_rad = obstacle['radius']
             min_dist_to_obstacle = calculate_min_dist_to_obstacle(A, B, o_pos, o_rad)
-            opti.subject_to(min_dist_to_obstacle >= alpha_h_i)
+            required_clearance = alpha_h_i + clearance_base + clearance_velocity_factor * V_i
+            opti.subject_to(min_dist_to_obstacle >= required_clearance)
             #opti.subject_to(norm_2(X[:, i] - o_pos) >= (o_rad + alpha_h[i]))
             #opti.subject_to(sumsqr(X[:, i] - o_pos) >= (o_rad + alpha_h[i])**2)
             #if i < N-1:  # Clearance constraints for midpoints
@@ -130,12 +133,10 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
                 #opti.subject_to(norm_2(midpoint - o_pos) >= (o_rad + alpha_h[i]))
               #  opti.subject_to(sumsqr(midpoint - o_pos) >= (o_rad + alpha_h[i])**2)
 
-    
     f = object_function_alpha(X, alpha_h, V, N)
     #f = object_function(X,N)
     
     opti.minimize(f)
-    #opti.minimize(f_dist)
  
     opts = {"verbose": True, "ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-1, "ipopt.constr_viol_tol": 1e-1, "expand": True, "ipopt.sb" : "yes"}  
     opti.solver('ipopt', opts)
@@ -196,7 +197,11 @@ def mpc_energy_efficiency_alpha(current_p, p_dot,  target, obstacles, params, co
         solver_stats = opti.stats()
         solver_time = solver_stats.get('t_proc_total', None)
         #Do something to get rid of error
-        sol_waypoints = P[:N,:]
+        if P_sol is not None:
+            sol_waypoints = P_sol[:N,:]
+        else:
+            sol_waypoints = P[:N,:]
+
         sol_alpha_h = np.full((N,), alpha_h0)  # Set alpha_h to a vector of alpha_h0 values
         sol_V = np.full((N,), v0)  # Set alpha_h to a vector of alpha_h0 values
         result_data = {

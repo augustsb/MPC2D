@@ -47,7 +47,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
     start_time, stop_time, dt = 0, 400, 0.05
     t = start_time
     last_update_time = 0  # Last time the gait parameters were updated
-    transition_period = 0.5
+    transition_period = 1.0
     increment_amount = 1*np.pi/180
     increment_interval = 2
     measurement_count = 0
@@ -93,15 +93,12 @@ def run_simulation(alpha_h, omega_h, delta_h):
                 collecting_data = False
                 total_energy = 0
                 measurement_count = 0
-                if (np.abs(results[-1]['average_energy']) >= 30):
+                if np.any(np.abs(p_CM_dot) > 5) or np.any(np.abs(theta_x_dot) > 20):
                     return results
 
             # Update gait parameters here
             alpha_h += increment_amount
-            #omega_h += increment_amount
-            #delta_h += increment_amount
             last_update_time = t
-            start_collect_time = t + transition_period  # Delay collection start by transition_period
             p_CM_start = p_CM  # Reset start position for velocity calculation
             # Update controller parameters
             controller_params.update({'alpha_h': alpha_h, 'omega_h': omega_h, 'delta_h': delta_h})
@@ -148,16 +145,17 @@ def safe_write_results_to_file(results, filename='simulation_results.json'):
     lock = FileLock(f"{filename}.lock")
     with lock:
         try:
-            # Attempt to read the existing data first
             with open(filename, 'r') as file:
                 existing_data = json.load(file)
         except FileNotFoundError:
-            # If the file does not exist, start with an empty list
             existing_data = []
         
         # Add the new results to the existing data
-        existing_data.extend(results)
-
+        if isinstance(results, dict):
+            existing_data.append(results)  # If results is a single dict, append it
+        else:
+            existing_data.extend(results)  # If results is a list, extend the list
+        
         # Write the updated data back to the file
         with open(filename, 'w') as file:
             json.dump(existing_data, file, indent=4)
@@ -169,10 +167,11 @@ def generate_parameter_sets_for_omega(alpha_start, omega_start, omega_end, omega
     omega_h_values = np.arange(omega_start, omega_end + omega_increment, omega_increment)
     return [(alpha_start, omega_h, delta_h) for omega_h in omega_h_values]
 
+
+
 def run_simulation_wrapper(params):
-    """Wrapper for running simulation and writing results."""
     results = run_simulation(*params)
-    safe_write_results_to_file(results)
+    safe_write_results_to_file([results])  # Assuming results is a dict; wrap it in a list if needed
 
 def main():
     alpha_h_start, omega_h_start, delta_h_start = 0, 0, np.radians(40)
@@ -181,24 +180,13 @@ def main():
     
     parameter_sets = generate_parameter_sets_for_omega(alpha_h_start, omega_h_start, omega_h_end, omega_increment, delta_h_start)
     
-    results = []
     with ProcessPoolExecutor() as executor:
-        # Submit all simulations
-        futures = [executor.submit(run_simulation, *params) for params in parameter_sets]
-        
-        # As each simulation completes, collect results
-        for future in as_completed(futures):
-            results.extend(future.result())
+        # Using list comprehension to directly submit and process simulations
+        [executor.submit(run_simulation_wrapper, params) for params in parameter_sets]
 
-    # Write all results at once
-    with open('simulation_results.json', 'w') as file:
-        json.dump(results, file, indent=4)
-
+# This ensures the script can be run as a standalone program
 if __name__ == "__main__":
     main()
-
-
-"""
 
 
 # Example usage
@@ -206,4 +194,3 @@ alpha_h_start, omega_h_start, delta_h_start = 0 * np.pi / 180, 150 * np.pi / 180
 results = run_simulation(alpha_h_start, omega_h_start, delta_h_start)
 print(results)
 
-"""

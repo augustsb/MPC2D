@@ -79,7 +79,7 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
 
     min_velocity = 0.3
     max_velocity = 0.7
-    alpha_h_min = 10*np.pi/180
+    alpha_h_min = 5*np.pi/180
     alpha_h_max = 90*np.pi/180
     omega_h_min = 60*np.pi/180
     omega_h_max = 210*np.pi/180
@@ -103,14 +103,11 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
 
 
     for i in range(N):
-        opti.subject_to(alpha_h[i] >= alpha_h_min)
-        opti.subject_to(alpha_h[i] <= alpha_h_max)
-        opti.subject_to(omega_h[i] >= omega_h_min)
-        opti.subject_to(omega_h[i] <= omega_h_max)
+        opti.subject_to(opti.bounded(alpha_h_min, alpha_h[i], alpha_h_max))
+        opti.subject_to(opti.bounded(omega_h_min, omega_h[i], omega_h_max))
         #opti.subject_to(delta_h[i] >= delta_h_min)
         #opti.subject_to(delta_h[i] <= delta_h_max)
-        opti.subject_to(V[i] >= min_velocity)
-        opti.subject_to(V[i] <= max_velocity)
+        opti.subject_to(opti.bounded(min_velocity, V[i], max_velocity))
 
 
     for i in range(N-1):  # Clearance constraints for waypoints
@@ -130,9 +127,7 @@ def mpc_energy_efficiency(current_p, p_dot,  target, obstacles, params, controll
                 #opti.subject_to(sumsqr(midpoint - o_pos) > (o_rad + alpha_h[i])**2)
             
 
-    opti.set_initial(alpha_h[0], alpha_h0)
-    opti.set_initial(omega_h[0], omega_h0)
-    #opti.set_initial(delta_h[0], delta_h0)
+
     opti.set_initial(X[:,0], P[:,0])
     opti.set_initial(X[:,N-1], target)
 

@@ -131,7 +131,8 @@ def filter_obstacles(current_p, obstacles, horizon_distance):
     filtered_obstacles = []
     for obstacle in obstacles:
         o_pos = np.array(obstacle['center'])
+        o_rad = obstacle['radius']
         distance_to_obstacle = np.linalg.norm(o_pos - current_p)
-        if distance_to_obstacle <= horizon_distance:
+        if distance_to_obstacle - o_rad <= horizon_distance:
             filtered_obstacles.append(obstacle)
     return filtered_obstacles

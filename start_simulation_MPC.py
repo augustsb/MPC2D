@@ -19,23 +19,31 @@ import json
 import os
 import traceback
 from visualize_simulation_results import visualize_simulation_results, visualize_simulation_results_3d, convert_to_serializable
-from predict_energy import load_and_preprocess_data, find_optimal_configuration, load_and_preprocess_data_json
+from predict_energy import load_and_preprocess_data, find_optimal_configuration, load_and_preprocess_data_json, data_pareto_2802, data_pareto_1503
 from change_gait_params import calculate_coeffs_list, calculate_start_conditions, calculate_end_conditions
 import pandas as pd
+
 
 
 #data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/results_2802", "chunk_results_", 16)
 #Reprocessed
 data_all =  load_and_preprocess_data("/home/augustsb/MPC2D/reprocessed_results_2802", "reprocessed_chunk_results_", 16)
 data_all_predicted =  load_and_preprocess_data("/home/augustsb/MPC2D/predictions_reprocessed_results_2802", "predicted_reprocessed_chunk_results__", 16)
-pareto_df = pd.read_csv("/home/augustsb/MPC2D/data_sorted_by_average_energy.csv")
 data_1703_path = "/home/augustsb/MPC2D/results_1703/simulation_results.json"
 data_1703 = load_and_preprocess_data_json(data_1703_path)
 #data_combined = pd.concat([data, data_new, data_1503], ignore_index=True)
 data_new = pd.concat([data_1703])  # Use ignore_index=Tr
-data_new = data_new[data_new['average_energy'] <= 11]
+data_new = data_new[data_new['average_energy'] <= 20]
 
+columns = ['alpha_h', 'omega_h', 'delta_h', 'average_velocity', 'average_energy']
+data_lateral_1503 = pd.DataFrame(data_pareto_1503, columns=columns)
+data_lateral_2802 = pd.DataFrame(data_pareto_2802, columns=columns)
 
+data_lateral_1503.columns = columns
+data_lateral_2802.columns = columns
+
+# Now, when you concatenate, the resulting DataFrame will have the columns named:
+data_combined = pd.concat([data_lateral_1503, data_lateral_2802], ignore_index=True)
 
 def start_simulation(mode, dimension):
     # Initialize parameters
@@ -104,14 +112,16 @@ def start_simulation(mode, dimension):
 
 
     dt = 0.05  #Update frequency simulation
-    mpc_dt = 1 #Update frequency mpc
-    mpc_gait_dt = 4.0
+    mpc_dt = 0.5 #Update frequency mpc
+    mpc_gait_dt = 2.0
     k = 1 #desired step length
     initial_N = 10 # Initial prediction horizon
     N = initial_N
     N_min = 2
     V_min = 0.3
-    V_max = 0.8
+    V_max = 0.5
+    controller_params['v_min'] = V_min
+    controller_params['v_max'] = V_max
 
 
 
@@ -307,7 +317,7 @@ def start_simulation(mode, dimension):
                     print("sol_delta_h:", sol_delta_h[0])
                     print("sol_omega_h:", sol_omega_h[0])
                     print("sol_alpha_h:", sol_alpha_h[0])
-                    print(sol_V[0])
+                    print("sol_V:", sol_V[0])
                     if (current_time >= next_mpc_gait_update_time):
 
                         optimal_params = {'omega_h': sol_omega_h[0], 'delta_h': sol_delta_h[0], 'alpha_h': sol_alpha_h[0]}
@@ -317,15 +327,15 @@ def start_simulation(mode, dimension):
 
                        
 
-                       # T = 0.2
+                        #T = 0.2
                         #start_conditions = calculate_start_conditions(alpha_h_current, omega_h_current, delta_h_current, n, t)
                         #end_conditions = calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T)
    
-                       # coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
+                        #coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
                         #controller_params['coeffs_list'] = coeffs_list
                         #controller_params['transition_start_time'] = t
                         #controller_params['transition_in_progress'] = True
-                        next_mpc_gait_update_time += mpc_dt
+                        next_mpc_gait_update_time += mpc_gait_dt
                         controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
 
                 
@@ -335,11 +345,13 @@ def start_simulation(mode, dimension):
  
                     P_sol = result["sol_waypoints"]
                     sol_alpha_h = result["sol_alpha_h"]
+                    sol_V = result["sol_V"]
                     solver_time = result.get("solver_time", 0)  # Use .get to provide a default value in case it's not set
-                    print(sol_alpha_h)
+                    print('Sol alpha:', sol_alpha_h[0])
+                    print('sol_V:', sol_V[0])
                     if (current_time >= next_mpc_gait_update_time):
 
-                        optimal_entry = find_optimal_configuration(data_new, sol_alpha_h[0], V_min, V_max)
+                        optimal_entry = find_optimal_configuration(data_combined, sol_alpha_h[0], V_min, V_max, sol_V[0])
 
                         optimal_params = {'omega_h': optimal_entry['omega_h'], 'delta_h': optimal_entry['delta_h'], 'alpha_h': optimal_entry['alpha_h']}
                         print(optimal_params)
@@ -347,7 +359,7 @@ def start_simulation(mode, dimension):
                         alpha_h_current, omega_h_current, delta_h_current = controller_params['alpha_h'], controller_params['omega_h'], controller_params['delta_h']
                         alpha_h_target, omega_h_target, delta_h_target = optimal_params['alpha_h'], optimal_params['omega_h'], optimal_params['delta_h']
                   
-                        T = 0.2
+                        T = 0.3
                         start_conditions = calculate_start_conditions(alpha_h_current, omega_h_current, delta_h_current, n, t)
                         end_conditions = calculate_end_conditions(alpha_h_target, omega_h_target, delta_h_target, n, t, T)
                         coeffs_list = calculate_coeffs_list(start_conditions, end_conditions, T)
@@ -355,6 +367,7 @@ def start_simulation(mode, dimension):
                         controller_params.update({'transition_start_time': t})
                         controller_params.update({'transition_in_progress': True})
                         next_mpc_gait_update_time += mpc_gait_dt
+                        #controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
 
 
                     
@@ -383,12 +396,12 @@ def start_simulation(mode, dimension):
                 mpc_thread.join()  # Ensure thread resources are cleaned up if it's finished
 
       
-            #if (controller_params['transition_in_progress'] and t - controller_params['transition_start_time'] >= T):
+            if (controller_params['transition_in_progress'] and t - controller_params['transition_start_time'] >= T):
 
-               # print('finished transition')
-                # Update controller params based on the retrieved solution
-                #controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
-                #controller_params.update({'transition_in_progress': False})
+                #print('finished transition')
+                #Update controller params based on the retrieved solution
+                controller_params.update({'alpha_h': alpha_h_target, 'omega_h': omega_h_target, 'delta_h': delta_h_target})
+                controller_params.update({'transition_in_progress': False})
 
 
             # Integrate to get the next state

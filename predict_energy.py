@@ -210,20 +210,20 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V
 
 """
 
-def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max):
+def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V):
     # Ensure 'predicted_energy' is a scalar if it's wrapped in a list or similar
 
     # Filter entries based on 'alpha_h', 'V_min', and 'V_max'
     valid_entries = data_all[
         (data_all['alpha_h'] <= alpha_h_constraint) &
-        (data_all['average_velocity'] >= V_min) &
-        (data_all['average_velocity'] <= V_max)
+        (sol_V - data_all['average_velocity'] <= 0.05)
     ]
 
     valid_entries = valid_entries.copy()
+    #print(valid_entries)
 
     if not valid_entries.empty:
-        optimal_entry_index = valid_entries['average_energy'].abs().idxmin()
+        optimal_entry_index = (valid_entries['average_energy']).abs().idxmin()
         optimal_entry = valid_entries.loc[optimal_entry_index]
         #return optimal_entry.drop('velocity_diff', axis=1)
         print(optimal_entry)
@@ -233,9 +233,9 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max):
         valid_entries = data_all[
         (data_all['alpha_h'] <= alpha_h_constraint)
         ]
-        optimal_entry_index = valid_entries['average_energy'].abs().idxmin()
+        differences = (valid_entries['average_velocity'] - sol_V).abs()
+        optimal_entry_index = differences.idxmin()
         optimal_entry = valid_entries.loc[optimal_entry_index]
-        print(optimal_entry)
         return optimal_entry
 
         
@@ -270,6 +270,12 @@ def get_features_targets(data):
 def get_features_targets_alpha(data):
     X = data[['predicted_energy']]
     y = data[['average_energy']] 
+    return X, y
+
+#columns = ['wp', 'alpha_deg', 'omega_deg_s', 'delta_deg', 'average_velocity', 'average_energy']
+def get_features_targets_pareto(data):
+    X = data[['alpha_deg', 'average_velocity']]  # Use 'average_velocity' as a feature
+    y = data[['average_energy']]  # Keep 'average_energy' as the target
     return X, y
 
 
@@ -460,6 +466,14 @@ def plot_predicted_energy(model, alpha_h_range, omega_h_range, delta_h_range, V_
 
 if __name__ == "__main__":
 
+    columns = ['wp', 'alpha_deg', 'omega_deg_s', 'delta_deg', 'average_velocity', 'average_energy']
+    data_lateral_undulation_df = pd.DataFrame(data_lateral_undulation, columns=columns)
+
+    columns = ['alpha_deg', 'omega_deg_s', 'delta_deg', 'average_velocity', 'average_energy']
+    data_lateral_1503 = pd.DataFrame(data_pareto_1503, columns=columns)
+    data_lateral_2802 = pd.DataFrame(data_pareto_2802, columns=columns)
+
+
     directory_path = "/home/augustsb/MPC2D/results_2802"
     directory_path_predictions = "/home/augustsb/MPC2D/prediction_results_2802"
     directory_path_reprocessed = "/home/augustsb/MPC2D/reprocessed_results_2802"
@@ -487,12 +501,19 @@ if __name__ == "__main__":
     data_new = pd.concat([data_1703])  # Use ignore_index=Tr
     data_new = data_new[data_new['average_energy'] <= 11]
 
-    X, y = get_features_targets(data_new)
+    X_undulation, y_undulation = get_features_targets_pareto(data_lateral_undulation_df)
+    X_2802, y_2802 = get_features_targets_pareto(data_lateral_2802)
+    X_1503, y_1503 = get_features_targets_pareto(data_lateral_1503)
+    # Concatenate features
+    X_all = pd.concat([X_2802, X_1503], ignore_index=True)
+
+    # Concatenate targets
+    y_all = pd.concat([y_2802, y_1503], ignore_index=True)
     #X, y = get_features_targets_alpha(data_1503)
 
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+    X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.2, random_state=42)
 
-    model = train_polynomial_regression(X, y, X_test, y_test) #Decent
+    model = train_polynomial_regression(X_all, y_all, X_test, y_test) #Decent
 
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
