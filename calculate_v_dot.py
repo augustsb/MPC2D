@@ -52,7 +52,7 @@ def calculate_v_dot(t, v, params, controller_params, waypoint_params, p_pathfram
     #Calculates control input according to lateral undulation without any directional control
 
     #u_x, u_z, phi_ref_x = calculate_u_lateral_undulation(t, phi_x, phi_x_dot,  params, controller_params, phi_o_x_commanded)
-    u_x, u_z = calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_x, theta_z, p_CM, params, controller_params, phi_o_x_commanded, phi_o_z_commanded)
+    u_x, u_z, phi_ref_x = calculate_u_lateral_undulation(t, phi_x, phi_z, phi_x_dot, phi_z_dot, theta_x, theta_z, p_CM, params, controller_params, phi_o_x_commanded, phi_o_z_commanded)
 
     #Calculate the actuator torques
 

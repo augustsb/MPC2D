@@ -1,6 +1,13 @@
 from change_gait_params import calculate_start_conditions, calculate_end_conditions, calculate_coeffs_list
 import numpy as np
 import matplotlib.pyplot as plt
+from predict_energy import load_and_preprocess_data_single
+import pandas as pd
+
+data_1803_delta_40 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_40.csv", 1)
+data_1803_delta_30 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_30.csv", 1)
+data_1803_delta_20 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_20.csv", 1)
+combined_data = pd.concat([data_1803_delta_40, data_1803_delta_30, data_1803_delta_20], ignore_index=True)
 
 
 alpha_h_current = 30 * np.pi / 180
@@ -53,6 +60,23 @@ plt.title("Transition of Gait Parameters")
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
+# Assuming combined_data is your pandas DataFrame from the concatenated datasets
+max_avg_velocity_idx = combined_data['average_velocity'].idxmax()  # Find the index of the max average_velocity
+max_avg_velocity_entry = combined_data.loc[max_avg_velocity_idx]  # Retrieve the entry at that index
+combined_data = combined_data[combined_data['average_velocity'] < 1]
+
+combined_data['normalized_velocity'] = (combined_data['average_velocity'] - combined_data['average_velocity'].min()) / (combined_data['average_velocity'].max() - combined_data['average_velocity'].min())
+combined_data['normalized_energy'] = (combined_data['average_energy'] - combined_data['average_energy'].min()) / (combined_data['average_energy'].max() - combined_data['average_energy'].min())
+
+combined_data['velocity_energy_ratio'] = combined_data['normalized_velocity'] - combined_data['normalized_energy']
+
+sorted_data = combined_data.sort_values(by='velocity_energy_ratio', ascending=False)
+
+# Print the top entry/entries
+print("Entries with High Velocity and Low Energy Usage:")
+print(sorted_data.head(10))  # Change 'n' to however many top entries you want to see
 
  
 
