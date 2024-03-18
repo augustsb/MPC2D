@@ -9,6 +9,8 @@ from init_waypoint_parameters import init_waypoint_parameters
 from calculate_pathframe_state import calculate_pathframe_state
 import numpy as np
 
+x_list = []
+y_list = []
 
 def start_simulation():
     # Initialize parameters
@@ -22,10 +24,11 @@ def start_simulation():
 
     controller_params = init_controller_parameters(n,l)
     waypoint_params = init_waypoint_parameters(waypoints)
-    
+
+
 
     start_time = 0
-    stop_time = 200
+    stop_time = 10
     dt = 0.05
 
 
@@ -78,10 +81,36 @@ def start_simulation():
 
 
         x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, '2D', None, alpha_h=None)
+        x_list.append(x[0])
+        y_list.append(y[0])
+        #y_displacements_from_COM = y - p_CM[1]
+        max_dist = np.max(y) - np.min(y)
+        max_link_extension = np.abs(np.sin(controller_params['alpha_h']*180/np.pi)*0.14)
+        print(max_link_extension - max_dist / 2)
+        # Step 2: Find the maximum absolute displacement
+        #max_horizontal_displacement = np.max(np.abs(y_displacements_from_COM))
+
+
+        # Step 3: Print the maximum displacement
+        #print(f"Maximum horizontal displacement from the COM (in y-direction): {max_horizontal_displacement} units")
         plt.pause(0.05)
       
 
     plt.ioff()
+    # After the simulation loop
+    # Plotting positions of the snake robot's links over time
+    fig, ax = plt.subplots()
+
+    # Assuming x_list and y_list are structured correctly
+    for t in range(len(x_list)):
+        x_positions = x_list[t]
+        y_positions = y_list[t]
+        ax.plot(x_positions, y_positions, 'o-', label=f'Time {t*dt:.2f}')  # dt and t used to label time
+
+    ax.set_xlabel('X position')
+    ax.set_ylabel('Y position')
+    ax.set_title('Positions of Snake Robot Links Over Time')
+    # plt.legend()  # Consider commenting this out if there are too many entries
     plt.show()
 
     
@@ -89,4 +118,6 @@ def start_simulation():
 # Call the start_simulation function to begin the simulation
 if __name__ == "__main__":
     start_simulation()
+
+
 

@@ -25,19 +25,12 @@ phi_refs = []
 dt = 0.1  # Time step increment
 while t < 20:
     elapsed_time = t
-    if t > T:
-        for i in range(n):
-            alpha_h_current = alpha_h_target
-            omega_h_current = omega_h_target
-            delta_h_current = delta_h_target
-            phi_ref = alpha_h_current * np.sin(omega_h_current * t + i * delta_h_current)
+    for i in range(n):
+        alpha_h_current = alpha_h_target
+        omega_h_current = omega_h_target
+        delta_h_current = delta_h_target
+        phi_ref = alpha_h_current * np.sin(omega_h_current * t + i * delta_h_current)
             # Assuming you want to plot the last phi_ref of each time step
-    else:
-        phi_ref = 0
-        for i in range(n):
-            coeffs = coeffs_list[i]
-            current_pos = coeffs[0] + coeffs[1] * elapsed_time + coeffs[2] * elapsed_time**2 + coeffs[3] * elapsed_time**3 + coeffs[4] * elapsed_time**4 + coeffs[5] * elapsed_time**5
-            phi_ref = current_pos  # Assuming you want to plot the last current_pos of each time step
     
     # Append current time and phi_ref to their respective lists
     time_steps.append(t)

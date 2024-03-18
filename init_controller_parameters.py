@@ -13,15 +13,16 @@ def init_controller_parameters(n,l):
     controller_params['Kd_joint'] = 50
 
     # Parameters for gait pattern horizontal
-    #controller_params['alpha_h'] = 30 * np.pi / 180
-    #controller_params['omega_h'] = 150 * np.pi / 180
-    #controller_params['delta_h'] = 40 * np.pi / 180
+    controller_params['alpha_h'] = 30 * np.pi / 180
+    controller_params['omega_h'] = 150 * np.pi / 180
+    controller_params['delta_h'] = 40 * np.pi / 180
+    #controller_params['delta_h'] = 20 * np.pi / 180
 
     controller_params['transition_in_progress'] = False
 
-    controller_params['alpha_h'] = 0.7155849933176757
-    controller_params['omega_h'] = 0.5235987755982988
-    controller_params['delta_h'] = 0.6981317007977318
+    #controller_params['alpha_h'] = 0.7155849933176757
+    #controller_params['omega_h'] = 0.5235987755982988
+    #controller_params['delta_h'] = 0.6981317007977318
 
 
 

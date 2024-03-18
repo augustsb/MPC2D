@@ -45,12 +45,12 @@ def run_simulation(alpha_h, omega_h, delta_h):
     v0 = vertcat(theta_x0, p_CM0, theta_x0_dot, p_CM0_dot, y_int0)
 
 
-    start_time, stop_time, dt = 0, 1200, 0.05
+    start_time, stop_time, dt = 0, 1400, 0.05
     t = start_time
     last_update_time = 0  # Last time the gait parameters were updated
     transition_period = 1.0
     T_cycle = 2 * np.pi / omega_h  # Time period of one cycle based on omega_h
-    increment_amount = 1*np.pi/180
+    increment_amount = 3*np.pi/180
     increment_interval = T_cycle
     measurement_count = 0
     collecting_data = False  # Flag to indicate if we are in the data collection phase
@@ -102,6 +102,9 @@ def run_simulation(alpha_h, omega_h, delta_h):
 
             # Update gait parameters here
             alpha_h += increment_amount
+            if (alpha_h > 90*np.pi/180):
+                return results
+            
             last_update_time = t
             p_CM_start = p_CM  # Reset start position for velocity calculation
             # Update controller parameters
@@ -171,13 +174,6 @@ def run_simulation_wrapper(params):
     safe_write_results_to_csv(results)  # Adjusted to call the new CSV writing function
 
 
-
-def generate_parameter_sets_for_omega(alpha_start, omega_start, delta_h, num_values):
-    """Generate parameter sets, varying omega_h."""
-    omega_increment = np.radians(1)
-    return [(alpha_start, omega_h, delta_h) for omega_h in np.arange(omega_start, omega_start + num_values * omega_increment, omega_increment)]
-
-
 filename = 'simulation_results.csv'
 
 def find_next_omega_h_start(filename):
@@ -188,21 +184,43 @@ def find_next_omega_h_start(filename):
     except (FileNotFoundError, pd.errors.EmptyDataError):
         # If the file does not exist or is empty, start from the beginning
         return 0
+    
+
+def generate_parameter_sets_for_omega(alpha_start, omega_start, omega_end, delta_h, num_values):
+    """Generate parameter sets, varying omega_h."""
+    omega_increment = 5 * np.pi / 180  # 5 degrees in radians
+    return [(alpha_start, omega_h, delta_h) for omega_h in np.arange(omega_start, omega_end + omega_increment, omega_increment)]
 
 def main():
-    omega_h_start = find_next_omega_h_start(filename)
-    num_processes = os.cpu_count()  # Determine the number of processes to use
-    alpha_h_start, delta_h_start = 0, np.radians(40)
-
-    parameter_sets = generate_parameter_sets_for_omega(alpha_h_start, omega_h_start, delta_h_start, num_processes)
+    filename = 'simulation_results.csv'
+    omega_h_start = np.radians(30)
+    omega_h_end = np.radians(210)
     
+    num_processes = os.cpu_count()  # Determine the number of processes to use
+    alpha_h_start, delta_h_start = np.radians(5), np.radians(20)  # Starting values for alpha_h and delta_h
+
+    # Calculate the total number of steps needed to cover the range with 5-degree increments
+    total_steps = int((omega_h_end - omega_h_start) / (5 * np.pi / 180)) + 1
+
+    # Calculate steps per process, rounding up to ensure coverage
+    steps_per_process = (total_steps + num_processes - 1) // num_processes
+
+    parameter_sets = []
+    for i in range(num_processes):
+        current_start = omega_h_start + i * steps_per_process * (5 * np.pi / 180)
+        # Ensure we don't calculate beyond the intended end of the range
+        if current_start >= omega_h_end:
+            break  # Skip if the start point is beyond the end of the range
+        current_end = min(current_start + (steps_per_process * (5 * np.pi / 180)), omega_h_end + (5 * np.pi / 180))
+        sets = generate_parameter_sets_for_omega(alpha_h_start, current_start, current_end, delta_h_start, steps_per_process)
+        parameter_sets.extend(sets)
+
     # Using ProcessPoolExecutor to parallelize the simulation
     with ProcessPoolExecutor() as executor:
         executor.map(run_simulation_wrapper, parameter_sets)
 
 if __name__ == "__main__":
     main()
-
 
 
 #alpha_h_start, omega_h_start, delta_h_start = 0, 0.5235987755982988, 0.6981317007977318,

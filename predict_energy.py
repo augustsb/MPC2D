@@ -223,10 +223,11 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V
     #print(valid_entries)
 
     if not valid_entries.empty:
-        optimal_entry_index = (valid_entries['average_energy']).abs().idxmin()
-        optimal_entry = valid_entries.loc[optimal_entry_index]
+        #optimal_entry_index = (valid_entries['average_energy']).abs().idxmin()
+        #optimal_entry = valid_entries.loc[optimal_entry_index]
         #return optimal_entry.drop('velocity_diff', axis=1)
-        print(optimal_entry)
+        optimal_entry_index = (valid_entries['average_velocity'] - sol_V).abs().idxmin()
+        optimal_entry = valid_entries.loc[optimal_entry_index]
         return optimal_entry
     
     else:
@@ -248,11 +249,20 @@ def load_and_preprocess_data(directory_path, file_prefix, num_files):
     # This line might be redundant if 'success' accurately flags all and only successful instances
     #data = data[(data['success']) == True & (data['delta_h'] == 0.523599)] 
 
-    data = data[(data['success']) == True] 
-    data['average_energy'] = data['average_energy'].abs()
+    #data = data[(data['success']) == True] 
+    #data['average_energy'] = data['average_energy'].abs()
     #data['average_velocity'] = data['average_velocity'].abs()
 
     return data
+
+def load_and_preprocess_data_single(directory_path, file_prefix, num_files):
+    all_files = [os.path.join(directory_path, f"{file_prefix}")]
+    df_list = [pd.read_csv(file) for file in all_files]
+    data = pd.concat(df_list, ignore_index=True)
+    data = data[(data['average_energy'] <= 20)] 
+
+    return data
+
 
 
 def load_and_preprocess_data_json(file_path):
@@ -496,24 +506,16 @@ if __name__ == "__main__":
     data_1703_path = "/home/augustsb/MPC2D/results_1703/simulation_results.json"
     data_1703 = load_and_preprocess_data_json(data_1703_path)
 
+    data_1803_delta_40 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_40.csv", 1)
+    data_1803_delta_30 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_30.csv", 1)
+    data_1803_delta_20 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_20.csv", 1)
+    combined_data = pd.concat([data_1803_delta_40, data_1803_delta_30, data_1803_delta_20], ignore_index=True)
 
-    #data_combined = pd.concat([data, data_new, data_1503], ignore_index=True)
-    data_new = pd.concat([data_1703])  # Use ignore_index=Tr
-    data_new = data_new[data_new['average_energy'] <= 11]
+    X, y = get_features_targets(data_1803_delta_40)
 
-    X_undulation, y_undulation = get_features_targets_pareto(data_lateral_undulation_df)
-    X_2802, y_2802 = get_features_targets_pareto(data_lateral_2802)
-    X_1503, y_1503 = get_features_targets_pareto(data_lateral_1503)
-    # Concatenate features
-    X_all = pd.concat([X_2802, X_1503], ignore_index=True)
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
 
-    # Concatenate targets
-    y_all = pd.concat([y_2802, y_1503], ignore_index=True)
-    #X, y = get_features_targets_alpha(data_1503)
-
-    X_train, X_test, y_train, y_test = train_test_split(X_all, y_all, test_size=0.2, random_state=42)
-
-    model = train_polynomial_regression(X_all, y_all, X_test, y_test) #Decent
+    model = train_polynomial_regression(X, y, X_test, y_test) #Decent
 
     #model = train_random_forest(X, y, X_test, y_test) #Good
     #model = train_linear_regression(X, y, X_test, y_test) #Bad
@@ -525,11 +527,9 @@ if __name__ == "__main__":
     #Pareto stuff
 
         
-    #pareto_df = make_pareto_front(data_1503)
-
-    #pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
-
-    #pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
+    pareto_df = make_pareto_front(combined_data)
+    pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
+    pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
 
     # Now, sort the entire dataset by 'average_energy' in ascending order
     #data_sorted = data_1503.sort_values(by='average_energy', ascending=True)

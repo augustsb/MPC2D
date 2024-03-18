@@ -5,12 +5,18 @@ import traceback
 from obstacle_methods import calculate_min_dist_to_obstacle
 
 
+def calculate_safe_margin(alpha_h, direct_distance):
+    # Assuming alpha_h is given in radians and direct_distance is the closest approach distance to the obstacle
+    safe_margin = direct_distance * np.tan(alpha_h / 2)
+    return safe_margin
+
+
 def object_function(X, N):
     
     f = 0
     for i in range(N-1):  # Iterate over the horizon, except the last point where there's no next point
         segment_length = sumsqr(X[:, i+1] - X[:, i]) #Works for some reason
-        #segment_length = norm_2(X[:, h+1] - X[:, h]) #Does not work...
+        #segment_length = norm_2(X[:, i+1] - X[:, i]) #Does not work...
         f += segment_length
         #f += sumsqr(X[:,N-1] - X[:,i])
     
@@ -21,7 +27,7 @@ def mpc_shortest_path(current_p, target, obstacles, params, controller_params,  
 
 
     N = initial_N
-    safe_margin = controller_params['alpha_h'] 
+    alpha_h = controller_params['alpha_h']
 
     opti = Opti()  # Create an optimization problem
     X = opti.variable(3, N)  # Position variables
@@ -52,7 +58,7 @@ def mpc_shortest_path(current_p, target, obstacles, params, controller_params,  
             #opti.subject_to(sumsqr(X[:, i] - o_pos) > (o_rad + safe_margin)**2)
             #opti.subject_to(norm_2(X[:, i] - o_pos) > (o_rad + safe_margin))
             min_dist_to_obstacle = calculate_min_dist_to_obstacle(A, B, o_pos, o_rad)
-            opti.subject_to(min_dist_to_obstacle >= safe_margin)
+            opti.subject_to(min_dist_to_obstacle > alpha_h/2)
             #if i < N-1:  # Clearance constraints for midpoints
                 #midpoint = (X[:, i] + X[:, i+1]) / 2
                 #opti.subject_to(sumsqr(midpoint - o_pos) > (o_rad + safe_margin)**2)
@@ -115,7 +121,11 @@ def mpc_shortest_path(current_p, target, obstacles, params, controller_params,  
         solver_stats = opti.stats()
         solver_time = solver_stats.get('t_proc_total', None)
         #Do something to get rid of error
-        sol_waypoints = P[:N,:]
+        if P_sol is not None:
+            sol_waypoints = P_sol
+        else:
+            sol_waypoints = P[:N,:]
+
         result_queue.put((sol_waypoints, None))
 
 

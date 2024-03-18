@@ -1,6 +1,9 @@
 import json
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+from scipy.stats import iqr
+
 
 
 def convert_to_serializable(item):
@@ -18,6 +21,76 @@ def convert_to_serializable(item):
 
 
 import os
+
+
+
+def plot_colored_path():
+    # Read the data
+    dt = 0.05
+
+
+    log_file_path = "simulation_log.json"
+    with open(log_file_path, 'r') as file:
+        log_data = json.load(file)
+
+    p_CM_log = np.array(log_data['p_CM_log'])
+    velocity_log = np.array(log_data['velocity_list'])  # Assuming this is correct; remove extra list wrap if necessary
+    energy_log = np.array(log_data['energy_list'])  # Same as above
+    energy_per_second = np.array(energy_log) / dt  # Adjust energy values to per-second basis if necessary
+    obstacles = log_data['obstacles']
+
+    power_iqr = iqr(energy_per_second)
+    power_median = np.median(energy_per_second)
+    vmin = max(power_median - 0.5 * power_iqr, min(energy_per_second))
+    vmax = min(power_median + 0.5 * power_iqr, max(energy_per_second))
+
+    # Function to plot the paths
+    def plot_path_with_color(p_CM_log, values, title, cbar_label, fig_path, vmin, vmax):
+        plt.figure(figsize=(10, 6))
+        x = p_CM_log[:, 0]
+        y = p_CM_log[:, 1]
+
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+
+        # Create a LineCollection object
+        lc = LineCollection(segments, cmap='inferno', norm=plt.Normalize(vmin=vmin, vmax=vmax))
+        lc.set_array(values)
+        lc.set_linewidth(2)
+        plt.gca().add_collection(lc)
+        plt.colorbar(lc, label=cbar_label)
+
+        # Plot obstacles
+        for obstacle in obstacles:
+            circle = plt.Circle((obstacle['center'][0], obstacle['center'][1]), obstacle['radius'], color='red', fill=True, alpha=0.5)
+            plt.gca().add_patch(circle)
+
+        plt.plot(x[0], y[0], 'go', markersize=7, label='Start')
+        plt.plot(x[-1], y[-1], 'bo', markersize=7, label='End')
+
+        plt.xlabel('X[m]')
+        plt.ylabel('Y[m]')
+        plt.title(title)
+        plt.axis('equal')
+        plt.legend()
+        plt.grid(True)
+
+        if not os.path.exists('figs'):
+            os.makedirs('figs')
+        plt.savefig(fig_path)
+        print(f"Figure saved to {fig_path}")
+        # plt.show()
+
+    # Plotting velocity and energy in separate plots
+    #plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity', 'figs/cm_path_velocity.png', min(velocity_log), max(velocity_log))
+    #plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage', 'figs/cm_path_energy.png', vmin, vmax)
+
+    plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity', 'figs/cm_path_velocity.png', 0, 0.6)
+    plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage', 'figs/cm_path_energy.png', 5, 30)
+
+
+
+
 
 def draw_sphere(ax, center, radius, color='r'):
     # Generate points for a sphere
@@ -38,6 +111,9 @@ def visualize_simulation_results():
         log_data = json.load(file)
 
     p_CM_log = np.array(log_data['p_CM_log'])
+    phi_ref_x_log = np.array(log_data['phi_ref_x'])
+    velocity_log = np.array([log_data['velocity_list']])
+    energy_log = np.array([log_data['energy_list']])
     #middle_link_log = np.array(log_data['middle_link_log'])
     all_link_x_log = np.array(log_data['all_link_x'])
     all_link_y_log = np.array(log_data['all_link_y'])
@@ -87,6 +163,23 @@ def visualize_simulation_results():
 
     # Optionally, you can still display the plot in addition to saving it
     #plt.show()
+
+
+    # New code to plot phi_ref_x
+    plt.figure(figsize=(10, 6))  # Create a new figure for phi_ref_x
+    time_steps = np.arange(len(phi_ref_x_log))  # Assuming time steps are equal and can be represented as an array of indices
+    plt.plot(time_steps, phi_ref_x_log, label='$\phi_{ref\_x}$ over time', marker='None', linestyle='-', color='green')
+    
+    plt.xlabel('Time Step')
+    plt.ylabel('$\phi_{ref\_x}$ (Radians)')
+    plt.title('Reference Angular Position ($\phi_{ref\_x}$) Over Time')
+    plt.legend()
+    plt.grid(True)
+    
+    # Save the figure for phi_ref_x
+    phi_ref_x_figure_path = os.path.join('figs', 'phi_ref_x_over_time.png')
+    plt.savefig(phi_ref_x_figure_path)
+    print(f"Figure for phi_ref_x saved to {phi_ref_x_figure_path}")
 
 
 
@@ -189,5 +282,22 @@ def visualize_simulation_results_3d():
     plt.show()
 
 
-#visualize_simulation_results_3d()
 
+"""
+#visualize_simulation_results_3d()
+    # Read the data
+log_file_path = "simulation_log.json"
+with open(log_file_path, 'r') as file:
+     log_data = json.load(file)
+
+energy_log = np.array(log_data['energy_list'])  # Same as above
+energy = 0
+for val in energy_log:
+    energy += val
+
+#print(energy)
+#print(energy / len(energy_log))
+#print(energy / (28.455011423104033 / 0.36457413738763444))
+"""
+
+plot_colored_path()

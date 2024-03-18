@@ -119,7 +119,7 @@ def calculate_min_dist_to_obstacle(A, B, obstacle_center, obstacle_radius):
 
 
 
-def filter_obstacles(current_p, obstacles, horizon_distance):
+def filter_obstacles(current_p, obstacles, horizon_distance, goal):
     """
     Filter obstacles to include only those within a certain horizon distance.
 
@@ -133,6 +133,47 @@ def filter_obstacles(current_p, obstacles, horizon_distance):
         o_pos = np.array(obstacle['center'])
         o_rad = obstacle['radius']
         distance_to_obstacle = np.linalg.norm(o_pos - current_p)
-        if distance_to_obstacle - o_rad <= horizon_distance:
+        distance_to_goal = np.linalg.norm(goal - current_p)
+        if distance_to_obstacle - o_rad <= distance_to_goal:
             filtered_obstacles.append(obstacle)
     return filtered_obstacles
+
+
+
+def analyze_future_path(planned_path, filtered_obstacles, look_ahead_steps):
+    # Example logic to determine path clarity
+    for step in range(look_ahead_steps):
+        path_point = planned_path[step]
+        for obstacle in obstacles:
+            if np.linalg.norm(obstacle['center'] - path_point) < obstacle['radius'] + 30*np.pi/180:
+                return "dense"
+    return "clear"
+
+
+
+area_size = (31, 8)
+start = np.array([0,0,0])
+target = np.array([29.0 , 0.0, 0.0]) #2D
+
+
+obstacles = [
+            {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
+            {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
+            {'center': (6.0, 1.0, 0), 'radius': 1.0},    # o2
+            {'center': (5.0, 4.0, 0), 'radius': 2.0},    # o3
+            {'center': (5.0, -4.0, 0), 'radius': 2.0},   # o4
+            {'center': (25.0, 4.0, 0), 'radius': 2.0},   # o5
+            {'center': (25.0, -4.0, 0), 'radius': 2.0},  # o6
+            {'center': (15.0, 4.0, 0), 'radius': 1.0},   # o7
+            {'center': (15.0, -4.0, 0), 'radius': 1.0},  # o8
+            {'center': (10.0, -5.0, 0), 'radius': 1.5},  # o9
+            {'center': (20.0, -6.0, 0), 'radius': 1.0},  # o10
+            {'center': (22.0, 0, 0),    'radius': 0.5},  # o11
+            {'center': (15.0, -8.0, 0), 'radius': 2.0},  # o12
+            {'center': (20.0, 4.0, 0), 'radius': 1.5},  # o13
+            {'center': (25.0, -0.5, 0), 'radius': 1.0},  # o14
+]
+
+visualize_obstacles(obstacles, area_size, start, target)
+
+
