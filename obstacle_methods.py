@@ -142,10 +142,11 @@ def filter_obstacles(current_p, obstacles, horizon_distance, goal):
 
 def analyze_future_path(planned_path, filtered_obstacles, look_ahead_steps):
     # Example logic to determine path clarity
+    look_ahead_steps = min(look_ahead_steps, len(planned_path))
     for step in range(look_ahead_steps):
         path_point = planned_path[step]
         for obstacle in obstacles:
-            if np.linalg.norm(obstacle['center'] - path_point) < obstacle['radius'] + 30*np.pi/180:
+            if np.linalg.norm(obstacle['center'] - path_point) < 45*np.pi/180:
                 return "dense"
     return "clear"
 

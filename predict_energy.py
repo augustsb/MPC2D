@@ -215,8 +215,7 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V
 
     # Filter entries based on 'alpha_h', 'V_min', and 'V_max'
     valid_entries = data_all[
-        (data_all['alpha_h'] <= alpha_h_constraint) &
-        (sol_V - data_all['average_velocity'] <= 0.05)
+        (data_all['alpha_h'] <= alpha_h_constraint) 
     ]
 
     valid_entries = valid_entries.copy()
@@ -228,18 +227,8 @@ def find_optimal_configuration(data_all, alpha_h_constraint, V_min, V_max, sol_V
         #return optimal_entry.drop('velocity_diff', axis=1)
         optimal_entry_index = (valid_entries['average_velocity'] - sol_V).abs().idxmin()
         optimal_entry = valid_entries.loc[optimal_entry_index]
+        print(optimal_entry)
         return optimal_entry
-    
-    else:
-        valid_entries = data_all[
-        (data_all['alpha_h'] <= alpha_h_constraint)
-        ]
-        differences = (valid_entries['average_velocity'] - sol_V).abs()
-        optimal_entry_index = differences.idxmin()
-        optimal_entry = valid_entries.loc[optimal_entry_index]
-        return optimal_entry
-
-        
 
 def load_and_preprocess_data(directory_path, file_prefix, num_files):
     all_files = [os.path.join(directory_path, f"{file_prefix}{i}.csv") for i in range(num_files)]
@@ -259,7 +248,7 @@ def load_and_preprocess_data_single(directory_path, file_prefix, num_files):
     all_files = [os.path.join(directory_path, f"{file_prefix}")]
     df_list = [pd.read_csv(file) for file in all_files]
     data = pd.concat(df_list, ignore_index=True)
-    data = data[(data['average_energy'] <= 20)] 
+    data = data[(data['average_velocity'] <= 1.5) & (data['average_energy'] <= 10)] 
 
     return data
 
@@ -506,10 +495,14 @@ if __name__ == "__main__":
     data_1703_path = "/home/augustsb/MPC2D/results_1703/simulation_results.json"
     data_1703 = load_and_preprocess_data_json(data_1703_path)
 
+
     data_1803_delta_40 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_40.csv", 1)
     data_1803_delta_30 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_30.csv", 1)
     data_1803_delta_20 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_20.csv", 1)
-    combined_data = pd.concat([data_1803_delta_40, data_1803_delta_30, data_1803_delta_20], ignore_index=True)
+    data_1803_delta_50 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_50.csv", 1)
+    data_1803_delta_60 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_60.csv", 1)
+
+    combined_data = pd.concat([data_1803_delta_40, data_1803_delta_30, data_1803_delta_20, data_1803_delta_50, data_1803_delta_60], ignore_index=True)
 
     X, y = get_features_targets(data_1803_delta_40)
 
@@ -523,13 +516,14 @@ if __name__ == "__main__":
 
     #predict_and_save(directory_path_reprocessed, file_prefix_reprocessed, 16, model, directory_path_predictions_reprocessed)
 
+    data_sorted = combined_data.sort_values(by=['alpha_h', 'average_energy'], ascending=[False, False])
+    data_sorted.to_csv('data_sorted_by_average_energy.csv', index=False)
+
 
     #Pareto stuff
-
-        
-    pareto_df = make_pareto_front(combined_data)
-    pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
-    pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
+    #pareto_df = make_pareto_front(combined_data)
+    #pareto_df_sorted = pareto_df.sort_values(by='average_energy', ascending=True)
+    #pareto_df_sorted.to_csv('pareto_df_sorted.csv', index=False)
 
     # Now, sort the entire dataset by 'average_energy' in ascending order
     #data_sorted = data_1503.sort_values(by='average_energy', ascending=True)

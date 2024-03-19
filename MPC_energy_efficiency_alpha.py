@@ -18,13 +18,19 @@ def object_function_alpha(X, alpha_h, V, N):
     #intercept = MX([2.41289405])
     #coefficients = MX([0.0, -25.38440826, -3.36016491, 41.68196734, 28.05986638, 0.0832687 ])
     
-    #delta40 max_energy8
-    #intercept = MX([1.57621037])
-    #coefficients = MX([ 0.0, -12.16753308,  -3.65471241,  10.85165704,  27.98929701, -1.68525643])
+    #delta40 max_energy10
+    intercept = MX([1.98578345])
+    coefficients = MX([0.0, -15.36100469,  -3.82317111,  13.6257704,   31.83799232, -2.66232484])
 
     #delta40 max_energy20
-    intercept = MX([3.74085757])
-    coefficients = MX([  0.0, -28.36466061, -4.36192943,  24.66493004,  45.71213631, -6.37794483])
+    #intercept = MX([3.74085757])
+    #coefficients = MX([  0.0, -28.36466061, -4.36192943,  24.66493004,  45.71213631, -6.37794483])
+
+    #delta all (20,30,40,50,60)
+    #intercept =  MX([2.05083734])
+    #coefficients = MX([ 0.0, -9.80726192, -7.61485257,  7.67812658, 26.79474786,  3.46898844])
+
+
 
     f_dist = MX(0)
     f_energy = MX(0)
@@ -67,11 +73,12 @@ def object_function_alpha(X, alpha_h, V, N):
         f_energy += predicted_average_energy
  
 
-    total_cost = 5*f_dist  + 5*f_energy + 100*f_time
+    total_cost = 0.1*f_dist + 0.9*f_energy + 0*f_time
 
     return total_cost
+    #return  5*f_energy + f_dist + 0*f_time
+    #return f_time
 
-    #return f_energy
 
 def object_function(X, N):
 
@@ -126,18 +133,19 @@ def mpc_energy_efficiency_alpha(current_p, p_dot, target, obstacles, params, con
         opti.subject_to(opti.bounded(min_velocity, V[i], max_velocity))
 
     #clearance_base = 0.1  # Base clearance
-    #clearance_velocity_factor = 0.05  # Factor to scale clearance with velocity
+    clearance_velocity_factor = 0.5 # Factor to scale clearance with velocity
     for i in range(N-1):  # Clearance constraints for waypoints
         A = X[:, i]
         B = X[:, i+1]
         alpha_h_i = alpha_h[i]
-        #V_i = V[i]
+        V_i = V[i]
         for obstacle in obstacles:
             o_pos = obstacle['center']
             o_rad = obstacle['radius']
             min_dist_to_obstacle = calculate_min_dist_to_obstacle(A, B, o_pos, o_rad)
             #required_clearance = alpha_h_i + clearance_base + clearance_velocity_factor * V_i
-            required_clearance = alpha_h_i / 2
+            #required_clearance = alpha_h_i / 2
+            required_clearance = clearance_velocity_factor * V_i + alpha_h_i / 2
             opti.subject_to(min_dist_to_obstacle > required_clearance)
             #opti.subject_to(norm_2(X[:, i] - o_pos) >= (o_rad + alpha_h[i]))
             #opti.subject_to(sumsqr(X[:, i] - o_pos) >= (o_rad + alpha_h[i])**2)
@@ -151,7 +159,7 @@ def mpc_energy_efficiency_alpha(current_p, p_dot, target, obstacles, params, con
     
     opti.minimize(f)
  
-    opts = {"verbose": True, "ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-1, "ipopt.constr_viol_tol": 1e-2, "expand": True, "ipopt.sb" : "yes"}  
+    opts = {"verbose": True, "ipopt.print_level": 0, "ipopt.max_iter": 1000, "ipopt.tol": 1e-2, "ipopt.constr_viol_tol": 1e-2, "expand": True, "ipopt.sb" : "yes"}  
     opti.solver('ipopt', opts)
 
  

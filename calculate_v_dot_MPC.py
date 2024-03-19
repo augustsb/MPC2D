@@ -86,11 +86,16 @@ def calculate_v_dot_MPC(t, current_state, params, controller_params, waypoint_pa
 
 
 
-    elementwise_product = u_x * phi_x_dot  # Vector: [u_1*phi_dot_1, ..., u_N*phi_dot_N]
+    elementwise_product_x = u_x * phi_x_dot  # Vector: [u_1*phi_dot_1, ..., u_N*phi_dot_N]
+    elementwise_product_z = u_z * phi_z_dot
     # Absolute value of the product vector
-    abs_elementwise_product = ca.fabs(elementwise_product)  # Vector: [|u_1*phi_dot_1|, ..., |u_N*phi_dot_N|]
+    abs_elementwise_product_x = ca.fabs(elementwise_product_x)  # Vector: [|u_1*phi_dot_1|, ..., |u_N*phi_dot_N|]
+    abs_elementwise_product_z = ca.fabs(elementwise_product_z)  # Vector: [|u_1*phi_dot_1|, ..., |u_N*phi_dot_N|]
+
     # Sum of absolute values
-    energy_consumption = ca.sum1(abs_elementwise_product)
+    energy_consumption_x = ca.sum1(abs_elementwise_product_x)
+    energy_consumption_z = ca.sum1(abs_elementwise_product_z)
+    energy_consumption = energy_consumption_x + energy_consumption_z
 
     #return v_dot, phi_x, phi_x_dot
     return v_dot, energy_consumption, phi_ref_x

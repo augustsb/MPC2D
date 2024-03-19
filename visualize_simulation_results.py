@@ -2,6 +2,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
+from mpl_toolkits.mplot3d.art3d import Line3DCollection  # For 3D line collections
 from scipy.stats import iqr
 
 
@@ -24,10 +25,9 @@ import os
 
 
 
-def plot_colored_path():
+def plot_colored_path(mode, r_acceptance = 0.5):
     # Read the data
     dt = 0.05
-
 
     log_file_path = "simulation_log.json"
     with open(log_file_path, 'r') as file:
@@ -39,10 +39,24 @@ def plot_colored_path():
     energy_per_second = np.array(energy_log) / dt  # Adjust energy values to per-second basis if necessary
     obstacles = log_data['obstacles']
 
+    avg_solver_time = log_data['avg_solver_time']
+    avg_power_usage = log_data['avg_power_usage']
+    total_distance_traveled = log_data['tot_distance']
+    total_time = log_data['tot_time']
+    target = log_data["target"]
+
+
+    #target_array = np.array(target)
+    #print(target_array.shape)
+    #print(p_CM_log[-1, :].shape)
+    #print("The norm between the last position and the target is:", np.linalg.norm(p_CM_log[-1, :].flatten() - target_array))
+
+
     power_iqr = iqr(energy_per_second)
     power_median = np.median(energy_per_second)
     vmin = max(power_median - 0.5 * power_iqr, min(energy_per_second))
     vmax = min(power_median + 0.5 * power_iqr, max(energy_per_second))
+
 
     # Function to plot the paths
     def plot_path_with_color(p_CM_log, values, title, cbar_label, fig_path, vmin, vmax):
@@ -77,18 +91,88 @@ def plot_colored_path():
 
         if not os.path.exists('figs'):
             os.makedirs('figs')
+        text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        plt.text(0.05, 0.95, text_str, transform=plt.gca().transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
         plt.savefig(fig_path)
         print(f"Figure saved to {fig_path}")
-        # plt.show()
-
-    # Plotting velocity and energy in separate plots
-    #plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity', 'figs/cm_path_velocity.png', min(velocity_log), max(velocity_log))
-    #plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage', 'figs/cm_path_energy.png', vmin, vmax)
-
-    plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity', 'figs/cm_path_velocity.png', 0, 0.6)
-    plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage', 'figs/cm_path_energy.png', 5, 30)
+        plt.show()
 
 
+    def plot_path_with_color_3d(p_CM_log, values, title, cbar_label, fig_path, vmin, vmax):
+
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+        x, y, z = p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2]
+
+        points = np.array([x, y, z]).T.reshape(-1, 1, 3)
+        segments = np.concatenate([points[:-1], points[1:]], axis=1)
+        lc = Line3DCollection(segments, cmap='inferno', norm=plt.Normalize(vmin=vmin, vmax=vmax))
+        lc.set_array(values)
+        lc.set_linewidth(2)
+        ax.add_collection(lc)
+        cbar = fig.colorbar(lc, ax=ax, label=cbar_label)
+
+        for obstacle in obstacles:
+            draw_sphere(ax, obstacle['center'], obstacle['radius'], color='r')
+
+        ax.plot([x[0]], [y[0]], [z[0]], 'go', markersize=7, label='Start')
+        #ax.plot([x[-1]], [y[-1]], [z[-1]], 'bo', markersize=7, label='End')
+        ax.plot([target[0]], [target[1]], [target[2]], 'bo', markersize=2, label='Goal')
+
+        draw_sphere_acceptance(ax, target, r_acceptance, color='blue', alpha=0.5, linewidth=0.1)
+
+        ax.set_xlabel('X[m]')
+        ax.set_ylabel('Y[m]')
+        ax.set_zlabel('Z[m]')
+        ax.set_title(title)
+        plt.legend()
+        plt.grid(True)
+
+        if not os.path.exists('figs'):
+            os.makedirs('figs')
+
+        text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        ax.text2D(0.05, 0.95, text_str, transform=ax.transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
+        set_axes_equal(ax)
+        # For 3D plotting, use this function after all other plotting commands and just before plt.show() or plt.savefig():
+
+        plt.savefig(fig_path)
+        print(f"Figure saved to {fig_path}")
+        plt.show()
+
+
+    if (mode == '3D'):
+        plot_path_with_color_3d(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity [m/s]', 'figs/cm_path_velocity.png', 0, 0.6)
+        plot_path_with_color_3d(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage [W]', 'figs/cm_path_energy.png', 5, 30)
+
+    else:
+        plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity [m/s]', 'figs/cm_path_velocity.png', min(velocity_log), max(velocity_log))
+        plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage [W]', 'figs/cm_path_energy.png', vmin, vmax)
+
+
+
+
+def set_axes_equal(ax):
+    # Extract the limits for the X, Y, and Z axes
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    # Calculate the ranges and find the maximum range
+    x_range = abs(x_limits[1] - x_limits[0])
+    y_range = abs(y_limits[1] - y_limits[0])
+    z_range = abs(z_limits[1] - z_limits[0])
+    max_range = max(x_range, y_range, z_range)
+
+    # Calculate the midpoints for each axis
+    x_mid = np.mean(x_limits)
+    y_mid = np.mean(y_limits)
+    z_mid = np.mean(z_limits)
+
+    # Set the limits for each axis to the maximum range
+    ax.set_xlim(x_mid - max_range / 2, x_mid + max_range / 2)
+    ax.set_ylim(y_mid - max_range / 2, y_mid + max_range / 2)
+    ax.set_zlim(z_mid - max_range / 2, z_mid + max_range / 2)
 
 
 
@@ -98,7 +182,18 @@ def draw_sphere(ax, center, radius, color='r'):
     x = center[0] + radius * np.cos(u) * np.sin(v)
     y = center[1] + radius * np.sin(u) * np.sin(v)
     z = center[2] + radius * np.cos(v)
-    ax.plot_surface(x, y, z, color=color, alpha=0.5,  zorder=2)
+    ax.plot_surface(x, y, z, color=color, alpha=1.0,  zorder=2)
+
+
+def draw_sphere_acceptance(ax, center, radius, **kwargs):
+    # Generate points on a sphere
+    u, v = np.mgrid[0:2*np.pi:50j, 0:np.pi:25j]  # Higher resolution
+    x = center[0] + radius * np.cos(u) * np.sin(v)
+    y = center[1] + radius * np.sin(u) * np.sin(v)
+    z = center[2] + radius * np.cos(v)
+    
+    # Plot the points as a surface
+    ax.plot_surface(x, y, z, **kwargs)
 
 
 
@@ -164,7 +259,6 @@ def visualize_simulation_results():
     # Optionally, you can still display the plot in addition to saving it
     #plt.show()
 
-
     # New code to plot phi_ref_x
     plt.figure(figsize=(10, 6))  # Create a new figure for phi_ref_x
     time_steps = np.arange(len(phi_ref_x_log))  # Assuming time steps are equal and can be represented as an array of indices
@@ -187,23 +281,6 @@ def visualize_simulation_results_3d():
 
     # Path to your log file
     log_file_path = "simulation_log.json"
-
-
-    waypoints = np.array([
-                        [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
-                        [ 1.04165649e+00,-6.74958878e-02,  4.06981388e-01],
-                        [ 2.08332436e+00, -1.34991246e-01,  8.13968089e-01],
-                        [ 3.12500511e+00, -2.02485676e-01,  1.22096136e+00],
-                        [ 4.16670058e+00, -2.69978319e-01,  1.62796312e+00],
-                        [ 5.20841362e+00, -3.37466198e-01,  2.03497692e+00],
-                        [ 6.24967871e+00, -4.00503844e-01,  2.44390828e+00],
-                        [ 7.28546506e+00, -4.16226337e-01,  2.87287802e+00],
-                        [ 8.32124267e+00, -4.31924811e-01, 3.30184777e+00],
-                        [ 9.35705847e+00, -4.47603353e-01,  3.73075776e+00],
-                        [ 1.04183564e+01, -3.91362592e-01,  3.82288216e+00],
-                        [ 1.13644360e+01,-2.27406968e-01, 3.35822765e+00],
-                        [ 1.20000000e+01, -1.02576682e-31,  2.48275862e+00]
-                        ])
 
     # Read the data
     with open(log_file_path, 'r') as file:
@@ -283,21 +360,5 @@ def visualize_simulation_results_3d():
 
 
 
-"""
-#visualize_simulation_results_3d()
-    # Read the data
-log_file_path = "simulation_log.json"
-with open(log_file_path, 'r') as file:
-     log_data = json.load(file)
 
-energy_log = np.array(log_data['energy_list'])  # Same as above
-energy = 0
-for val in energy_log:
-    energy += val
-
-#print(energy)
-#print(energy / len(energy_log))
-#print(energy / (28.455011423104033 / 0.36457413738763444))
-"""
-
-plot_colored_path()
+plot_colored_path('3D')

@@ -160,3 +160,41 @@ def calculate_coeffs_list(start_conditions, end_conditions, T):
 
 
 
+
+def sine_curve(A, omega, phi, t):
+    """Returns the value of a sine curve at time t."""
+    return A * np.sin(omega * t + phi)
+
+def transition_alpha(start_time, end_time, current_time):
+    """Calculates the blend factor alpha for the current time."""
+    if current_time <= start_time:
+        return 0
+    elif current_time >= end_time:
+        return 1
+    else:
+        return (current_time - start_time) / (end_time - start_time)
+
+def blended_signal_derivatives(t, start_time, end_time, A1, omega1, phi1, A2, omega2, phi2, i):
+    """Returns the blended position, velocity, and acceleration of the signal at time t."""
+    alpha = transition_alpha(start_time, end_time, t)
+    
+    # Position (current implementation)
+    y1 = A1 * np.sin(omega1 * t + i * phi1)
+    y2 = A2 * np.sin(omega2 * t + i* phi2)
+    blended_position = (1 - alpha) * y1 + alpha * y2
+    
+    # Velocity
+    v1 = A1 * omega1 * np.cos(omega1 * t + i* phi1)
+    v2 = A2 * omega2 * np.cos(omega2 * t + i* phi2)
+    blended_velocity = (1 - alpha) * v1 + alpha * v2
+    
+    # Acceleration
+    a1 = -A1 * omega1**2 * np.sin(omega1 * t + i* phi1)
+    a2 = -A2 * omega2**2 * np.sin(omega2 * t + i* phi2)
+    blended_acceleration = (1 - alpha) * a1 + alpha * a2
+    
+    return blended_position, blended_velocity, blended_acceleration
+
+
+
+

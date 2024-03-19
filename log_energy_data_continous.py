@@ -112,7 +112,7 @@ def run_simulation(alpha_h, omega_h, delta_h):
             
         # Simulation logic...
         v = MX.sym('v', 2*n + 7)
-        v_dot, energy_consumption = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, '2D')
+        v_dot, energy_consumption, phi_ref_x = calculate_v_dot_MPC(t, v, params, controller_params, waypoint_params, p_pathframe, '2D')
         u_func = Function('u_func', [v], [energy_consumption])
         opts = {'tf': dt}
         F = integrator('F', 'cvodes', {'x': v, 'ode': v_dot}, opts)
@@ -197,7 +197,7 @@ def main():
     omega_h_end = np.radians(210)
     
     num_processes = os.cpu_count()  # Determine the number of processes to use
-    alpha_h_start, delta_h_start = np.radians(5), np.radians(20)  # Starting values for alpha_h and delta_h
+    alpha_h_start, delta_h_start = np.radians(5), np.radians(60)  # Starting values for alpha_h and delta_h
 
     # Calculate the total number of steps needed to cover the range with 5-degree increments
     total_steps = int((omega_h_end - omega_h_start) / (5 * np.pi / 180)) + 1
