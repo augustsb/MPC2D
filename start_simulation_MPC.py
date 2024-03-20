@@ -75,7 +75,6 @@ def start_simulation(mode, dimension):
     #rea_size = (31, 8)
     #min_distance_to_start_target = 2.0
     #obstacles = generate_random_obstacles(num_obstacles, area_size, p_CM, target, min_distance_to_start_target)
-    #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
     """
     obstacles = [
         {'center': (15, 1.8, 0), 'radius': 1.60},  # First obstacle
@@ -84,16 +83,14 @@ def start_simulation(mode, dimension):
     """
 
 
-
-
     if dimension == '2D':
-        target = np.array([29.0 , 0.0, 0.0]) #2D
-
         #1 obstacle
+        #target = np.array([20.0 , 0.0, 0.0]) #2D
         #obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
 
         #8 obstacles
-        
+        """
+        target = np.array([29.0 , 0.0, 0.0]) #2D   
         obstacles = [
             {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
             {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
@@ -105,8 +102,10 @@ def start_simulation(mode, dimension):
             {'center': (15.0, 4.0, 0), 'radius': 1.0},   # o7
             {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
         ]
-        #14 obstacles
+        """
 
+        #14 obstacles
+        target = np.array([29.0 , 0.0, 0.0]) #2D
         obstacles = [
                     {'center': (18.0, -1.0, 0), 'radius': 2.0},  # o0
                     {'center': (10.0, 0.0, 0), 'radius': 1.5},   # o1
@@ -124,9 +123,22 @@ def start_simulation(mode, dimension):
                     {'center': (20.0, 4.0, 0), 'radius': 1.5},  # o13
                     {'center': (25.0, -0.5, 0), 'radius': 1.0},  # o14
         ]
+      
 
 
     if dimension == '3D':
+
+        #1 obstacle
+        
+        """
+        target = np.array([20.0 , 0.0, 0.0]) #2D
+        obstacles = [{'center': (10, 0, 0), 'radius': 1.5},]
+        """
+        
+
+        #8 obstacles
+
+
         target = np.array([29.0 , 0.0, 6.0]) #3D
         obstacles = [
             {'center': (18.0, -1.0, 4.5), 'radius': 2.0},  # o0
@@ -140,9 +152,36 @@ def start_simulation(mode, dimension):
             {'center': (15.0, -4.0, 2.0), 'radius': 1.0}   # o8
         ]
 
+        """
+
+        #14 obstacles
+        target = np.array([29.0 , 0.0, 6.0])
+        obstacles = [
+                    {'center': (18.0, -1.0, 4.5), 'radius': 2.0},  # o0
+                    {'center': (10.0, 0.0, 1.8), 'radius': 1.5},   # o1
+                    {'center': (6.0, 1.0, 3.0), 'radius': 1.0},    # o2
+                    {'center': (5.0, 4.0, 4.0), 'radius': 2.0},    # o3
+                    {'center': (5.0, -4.0, 4.0), 'radius': 2.0},   # o4
+                    {'center': (25.0, 4.0, 4.0), 'radius': 2.0},   # o5
+                    {'center': (25.0, -4.0, 4.0), 'radius': 2.0},  # o6
+                    {'center': (15.0, 4.0,4.0), 'radius': 1.0},   # o7
+                    {'center': (15.0, -4.0, 2.0), 'radius': 1.0},  # o8
+                    {'center': (10.0, -5.0, 2.0), 'radius': 1.5},  # o9
+                    {'center': (20.0, -6.0, 3.0), 'radius': 1.0},  # o10
+                    {'center': (22.0, 0, 3.0),    'radius': 0.5},  # o11
+                    {'center': (15.0, -8.0, 2.0), 'radius': 2.0},  # o12
+                    {'center': (20.0, 4.0, 8.0), 'radius': 1.5},  # o13
+                    {'center': (25.0, -0.5, 6.0), 'radius': 1.0},  # o14
+                    {'center': (22.0, 1, 6.0), 'radius': 1.0},  # o15
+                    {'center': (15.0, 0.5, 4.0), 'radius': 1.0},  # o16
+                    {'center': (15.0, -1, 2.0), 'radius': 1.0},  # o17
+                    {'center': (25, 2.5, 6.0), 'radius': 1.0},  # o18
+        ]
+        """
 
 
 
+     
 
     dt = 0.05  #Update frequency simulation
     mpc_dt = 0.5 #Update frequency mpc
@@ -151,8 +190,8 @@ def start_simulation(mode, dimension):
     initial_N = 10 # Initial prediction horizon
     N = initial_N
     N_min = 2
-    V_min = 0.3 #initial
-    V_max = 1.1 #initial
+    V_min = 0.4 #initial
+    V_max = 1.2 #initial
     alpha_h_max = 90*np.pi/180
     alpha_h_min = 5*np.pi/180
     controller_params['v_min'] = V_min
@@ -173,6 +212,8 @@ def start_simulation(mode, dimension):
     all_link_x = []
     all_link_y = []
     all_link_z = []
+    theta_x_list = []
+    theta_z_list = []
     phi_ref_x_list = []
     energy_list = []
     velocity_list = []
@@ -213,7 +254,7 @@ def start_simulation(mode, dimension):
         result_queue = Queue()
 
         if (mode == 'Distance'):
-            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, goal, obstacles, params, controller_params,
+            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params,
                                                                         N, k, result_queue, P.T, None))
             mpc_thread.start()
             try:
@@ -320,6 +361,8 @@ def start_simulation(mode, dimension):
                     goal = P[N-1,:]
                     prev_solution = expand_initial_guess(prev_solution, N, goal)
                     filtered_obstacles = filter_obstacles(p_CM, obstacles, N, goal)
+
+                    """
                     path_condition = analyze_future_path(prev_solution, filtered_obstacles, 3)
                     if path_condition == "clear":
                         controller_params.update({'v_max': 1.2})  # Increase v_min for clear paths
@@ -329,6 +372,7 @@ def start_simulation(mode, dimension):
                         controller_params.update({'v_max': 0.5})  # Increase v_min for clear paths
                         #controller_params.update({'v_max': 0.6})  # Increase v_min for clear paths
                         controller_params.update({'alpha_h_max': 30*np.pi/180})  # Increase v_min for clear paths
+                    """
 
 
                     if (mode == 'Energy'):
@@ -485,6 +529,8 @@ def start_simulation(mode, dimension):
             phi_ref_x_list.append(float(phi_ref_x_evaluated)) # Evaluate at v0)
             energy_list.append(energy)
             velocity_list.append(np.linalg.norm(p_CM_dot))
+            theta_x_list.append(np.array(theta_x).tolist())
+            theta_z_list.append(np.array(theta_z).tolist())
 
 
             if (not mpc_active and current_time >= next_mpc_update_time):
@@ -501,7 +547,7 @@ def start_simulation(mode, dimension):
             if target_reached:
                 simulation_over = True
             
-            x, y, z = draw_snake_robot(ax, t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, dimension, None, alpha_h=None)
+            x, y, z = draw_snake_robot(ax, target,  t, theta_x, theta_z, p_CM, params, waypoint_params, obstacles, dimension, None, alpha_h=None)
             #middle_link_list.append(middle_link_position.tolist())
             all_link_x.append(x)
             all_link_y.append(y)
@@ -531,6 +577,8 @@ def start_simulation(mode, dimension):
     "tot_energy" : tot_energy,
     "tot_distance" : total_distance_traveled,
     "tot_time"   : t,
+    "theta_x_list": theta_x_list,
+    "theta_z_list": theta_z_list,
     #"middle_link_log": middle_link_list,
     "all_link_x": all_link_x,
     "all_link_y": all_link_y,
@@ -573,9 +621,10 @@ def print_results(mode, tot_energy, avg_power, total_distance, average_speed, av
 
 if __name__ == "__main__":
 
-    #modes = ['Distance']
+    modes = ['Distance']
     #modes = ['Energy']
-    modes = ['Energy_alpha']
+    #modes = ['Energy_alpha']
+
     #dimension = '2D'
     dimension = '3D'
 
@@ -589,7 +638,7 @@ if __name__ == "__main__":
 
     if dimension == '2D':
         visualize_simulation_results()
-        plot_colored_path()
+        plot_colored_path('2D')
         #plot_colored_path('2D', 'velocity')
         #plot_colored_path('2D', 'energy')
     

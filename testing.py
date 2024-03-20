@@ -9,7 +9,7 @@ data_1803_delta_30 = load_and_preprocess_data_single("/home/augustsb/MPC2D/resul
 data_1803_delta_20 = load_and_preprocess_data_single("/home/augustsb/MPC2D/results_1803", "simulation_results_delta_20.csv", 1)
 combined_data = pd.concat([data_1803_delta_40, data_1803_delta_30, data_1803_delta_20], ignore_index=True)
 
-
+"""
 alpha_h_current = 30 * np.pi / 180
 omega_h_current = 150 * np.pi / 180
 delta_h_current = 40 * np.pi / 180
@@ -74,9 +74,57 @@ combined_data['velocity_energy_ratio'] = combined_data['normalized_velocity'] - 
 
 sorted_data = combined_data.sort_values(by='velocity_energy_ratio', ascending=False)
 
-# Print the top entry/entries
-print("Entries with High Velocity and Low Energy Usage:")
-print(sorted_data.head(10))  # Change 'n' to however many top entries you want to see
+"""
+
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+# Define the narrow section dimensions
+section_length = 10  # Adjust as necessary
+section_width = 5
+section_height = 5
+
+# Define obstacles
+# Example: obstacle = {'center': [x, y, z], 'radius': r}
+obstacles = [
+    {'center': [2, 2, 2], 'radius': 0.5},
+    {'center': [4, 3, 1], 'radius': 0.75},
+    {'center': [6, 2, 3], 'radius': 0.5},
+    # Add as many obstacles as needed
+]
+
+obstacles = []
+
+# Parameters
+path_start, path_end = 2, 8
+horizontal_clearance = vertical_clearance = 0.20
+obstacle_radius = 0.05  # Small radius to visualize the boundary
+spacing = 1  # Distance between obstacles
+
+# Generate obstacles along the tunnel boundaries
+for x in np.arange(path_start, path_end + spacing, spacing):
+    # Horizontal boundaries at y = +/- clearance
+    obstacles.append({'center': [x, -horizontal_clearance, 0], 'radius': obstacle_radius})
+    obstacles.append({'center': [x, horizontal_clearance, 0], 'radius': obstacle_radius})
+    # Vertical boundaries at z = +/- clearance
+    obstacles.append({'center': [x, 0, -vertical_clearance], 'radius': obstacle_radius})
+    obstacles.append({'center': [x, 0, vertical_clearance], 'radius': obstacle_radius})
+
+# Plotting
+fig = plt.figure()
+ax = fig.add_subplot(111, projection='3d')
+ax.set_xlim(0, section_length)
+ax.set_ylim(0, section_width)
+ax.set_zlim(0, section_height)
+
+# Draw each obstacle
+for obs in obstacles:
+    # For simplicity, this example uses scatter plot to represent obstacles
+    # For a more accurate representation, consider using a custom function to draw spheres
+    ax.scatter(*obs['center'], s=obs['radius']*1000, label='Obstacle')
+
+plt.show()
 
  
 

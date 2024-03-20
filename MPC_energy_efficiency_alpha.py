@@ -73,7 +73,7 @@ def object_function_alpha(X, alpha_h, V, N):
         f_energy += predicted_average_energy
  
 
-    total_cost = 0.1*f_dist + 0.9*f_energy + 0*f_time
+    total_cost = 0.1*f_dist + 0*f_energy + 0.9*f_time
 
     return total_cost
     #return  5*f_energy + f_dist + 0*f_time
@@ -133,7 +133,7 @@ def mpc_energy_efficiency_alpha(current_p, p_dot, target, obstacles, params, con
         opti.subject_to(opti.bounded(min_velocity, V[i], max_velocity))
 
     #clearance_base = 0.1  # Base clearance
-    clearance_velocity_factor = 0.5 # Factor to scale clearance with velocity
+    clearance_velocity_factor = 0.1 # Factor to scale clearance with velocity
     for i in range(N-1):  # Clearance constraints for waypoints
         A = X[:, i]
         B = X[:, i+1]

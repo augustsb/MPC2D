@@ -84,14 +84,15 @@ def plot_colored_path(mode, r_acceptance = 0.5):
 
         plt.xlabel('X[m]')
         plt.ylabel('Y[m]')
-        plt.title(title)
+        #plt.title(title)
         plt.axis('equal')
         plt.legend()
         plt.grid(True)
 
         if not os.path.exists('figs'):
             os.makedirs('figs')
-        text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        #text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        text_str = f"Average Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
         plt.text(0.05, 0.95, text_str, transform=plt.gca().transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
         plt.savefig(fig_path)
         print(f"Figure saved to {fig_path}")
@@ -124,14 +125,15 @@ def plot_colored_path(mode, r_acceptance = 0.5):
         ax.set_xlabel('X[m]')
         ax.set_ylabel('Y[m]')
         ax.set_zlabel('Z[m]')
-        ax.set_title(title)
+        #ax.set_title(title)
         plt.legend()
         plt.grid(True)
 
         if not os.path.exists('figs'):
             os.makedirs('figs')
 
-        text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        #text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
+        text_str = f"Average Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
         ax.text2D(0.05, 0.95, text_str, transform=ax.transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
         set_axes_equal(ax)
         # For 3D plotting, use this function after all other plotting commands and just before plt.show() or plt.savefig():
@@ -218,7 +220,7 @@ def visualize_simulation_results():
     plt.figure(figsize=(10, 6))
 
     # Plot p_CM positions
-    plt.plot(p_CM_log[:, 0], p_CM_log[:, 1], label='Path', marker='o', linestyle='-', markersize=0.1, color='b')
+    #plt.plot(p_CM_log[:, 0], p_CM_log[:, 1], label='Path', marker='o', linestyle='-', markersize=0.1, color='b')
 
     # Plot middle link positions
     #plt.plot(middle_link_log[:, 0], middle_link_log[:, 1], label='Middle Link Path', marker='x', linestyle='-', markersize=0.1, color='y')
@@ -230,7 +232,7 @@ def visualize_simulation_results():
 
     # Plot obstacles
     for obstacle in obstacles:
-        circle = plt.Circle((obstacle['center'][0], obstacle['center'][1]), obstacle['radius'], color='red', fill=True, alpha=0.5)
+        circle = plt.Circle((obstacle['center'][0], obstacle['center'][1]), obstacle['radius'], color='red', fill=True, alpha=1.0)
         plt.gca().add_patch(circle)
 
     plt.plot([], [], 'o', color='red', label='Obstacles', alpha=0.5)
@@ -266,7 +268,7 @@ def visualize_simulation_results():
     
     plt.xlabel('Time Step')
     plt.ylabel('$\phi_{ref\_x}$ (Radians)')
-    plt.title('Reference Angular Position ($\phi_{ref\_x}$) Over Time')
+    #plt.title('Reference Angular Position ($\phi_{ref\_x}$) Over Time')
     plt.legend()
     plt.grid(True)
     
@@ -277,7 +279,62 @@ def visualize_simulation_results():
 
 
 
-def visualize_simulation_results_3d():
+def draw_snake_robot_at_time_t(idx, ax,  l = 0.07, n = 10):
+
+    log_file_path = "simulation_log.json"
+
+    # Read the data
+    with open(log_file_path, 'r') as file:
+        log_data = json.load(file)
+
+    p_CM_log = np.array(log_data['p_CM_log'])
+    #middle_link_log = np.array(log_data['middle_link_log'])
+    all_link_x_log = np.array(log_data['all_link_x'])
+    all_link_y_log = np.array(log_data['all_link_y'])
+    all_link_z_log = np.array(log_data['all_link_z'])
+    theta_x_list = np.array(log_data['theta_x_list'])
+    theta_z_list = np.array(log_data['theta_z_list'])
+    target = log_data["target"]
+
+    x = all_link_x_log[idx]
+    y = all_link_y_log[idx]
+    z = all_link_z_log[idx]
+    theta_x = theta_x_list[idx]
+    theta_z = theta_z_list[idx]
+
+
+    for j in range(n):
+
+        startx = x[j] - l*np.cos(theta_z[j])*np.cos(theta_x[j])
+        starty = y[j] - l*np.cos(theta_z[j])*np.sin(theta_x[j])
+        startz = z[j] + l*np.sin(theta_z[j])
+        endx = x[j] + l*np.cos(theta_z[j])*np.cos(theta_x[j])
+        endy = y[j] + l*np.cos(theta_z[j])*np.sin(theta_x[j])
+        endz = z[j] - l*np.sin(theta_z[j])
+
+        startx = np.squeeze(startx)
+        starty = np.squeeze(starty)
+        startz = np.squeeze(startz)
+        endx = np.squeeze(endx)
+        endy = np.squeeze(endy)
+        endz = np.squeeze(endz)
+
+        # Plotting the links
+        ax.plot([startx, endx], [starty, endy], [startz, endz], 'bo-', linewidth=1.5, zorder=10)
+ 
+
+
+
+
+
+
+
+
+
+
+def visualize_simulation_results_3d(r_acceptance=0.5):
+
+    dt = 0.05
 
     # Path to your log file
     log_file_path = "simulation_log.json"
@@ -293,6 +350,24 @@ def visualize_simulation_results_3d():
     all_link_z_log = np.array(log_data['all_link_z'])
     obstacles = log_data['obstacles']
 
+    n = 20  # Adjust n to change the sparsity
+    sparse_p_CM_log = p_CM_log[::n, :]
+
+
+
+    velocity_log = np.array(log_data['velocity_list'])  # Assuming this is correct; remove extra list wrap if necessary
+    energy_log = np.array(log_data['energy_list'])  # Same as above
+    energy_per_second = np.array(energy_log) / dt  # Adjust energy values to per-second basis if necessary
+    obstacles = log_data['obstacles']
+
+    avg_solver_time = log_data['avg_solver_time']
+    avg_power_usage = log_data['avg_power_usage']
+    total_distance_traveled = log_data['tot_distance']
+    total_time = log_data['tot_time']
+    target = log_data["target"]
+
+
+
     # Initialize 3D plot
     fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection='3d')
@@ -300,29 +375,40 @@ def visualize_simulation_results_3d():
 
     # Plot p_CM positions
     #ax.plot(p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2], label='Path', marker='o', linestyle='-', markersize=0.1, color='b')
-
+    #ax.plot(p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2], marker='x', linestyle='-', markersize=0.3, zorder=10)
+    ax.scatter(sparse_p_CM_log[:, 0], sparse_p_CM_log[:, 1], sparse_p_CM_log[:, 2], c='b', marker='o', s=10)
     # Plot middle link positions
     #ax.plot(middle_link_log[:, 0], middle_link_log[:, 1], middle_link_log[:, 2], label='Middle Link Path', marker='x', linestyle='-', markersize=0.1, color='y')
+
+    """
 
     for link_idx in range(all_link_x_log.shape[1]):  # Assuming second dimension is number of links
         x = np.squeeze(all_link_x_log[:, link_idx])  # Remove unnecessary dimension
         y = np.squeeze(all_link_y_log[:, link_idx])
         z = np.squeeze(all_link_z_log[:, link_idx])
         ax.plot(x, y, z, marker='x', linestyle='-', markersize=0.3, label=f'Link {link_idx}', zorder=10)
+    """
 
     # Plot obstacles as spheres
     for obstacle in obstacles:
-        # This part is tricky because matplotlib doesn't support 3D spheres directly
-        # You could use plot_surface with a parametric sphere, but here's a simpler placeholder:
-        #ax.scatter(obstacle['center'][0], obstacle['center'][1], obstacle['center'][2], color='red', s=100, label='Obstacles', alpha=0.5)
         draw_sphere(ax, obstacle['center'], obstacle['radius'], color='r')
 
-    # Extracting X, Y, and Z coordinates
+    
+    ax.plot([target[0]], [target[1]], [target[2]], 'bo', markersize=7, label='Goal')
+    plt.plot(p_CM_log[0, 0], p_CM_log[0,0], 'go', markersize=7, label='Start')
+    plt.plot([], [], 'o', color='red', label='Obstacles', alpha=1.0)
+    draw_sphere_acceptance(ax, target, r_acceptance, color='blue', alpha=0.5, linewidth=0.1)
 
-    #X, Y, Z = waypoints[:,0], waypoints[:,1], waypoints[:,2]
 
-    # Plotting
-    #ax.plot(X, Y, Z, marker='o', linestyle='-', color='b', markersize=5, label='Waypoints')
+    draw_snake_robot_at_time_t(200, ax,  l = 0.07, n = 10)
+
+    draw_snake_robot_at_time_t(500, ax,  l = 0.07, n = 10)
+
+    draw_snake_robot_at_time_t(700, ax,  l = 0.07, n = 10)
+
+    draw_snake_robot_at_time_t(1000, ax,  l = 0.07, n = 10)
+
+    draw_snake_robot_at_time_t(1300, ax,  l = 0.07, n = 10)
 
 
     # Manually set the aspect ratio
@@ -333,15 +419,27 @@ def visualize_simulation_results_3d():
     mid_x = (p_CM_log[:, 0].max()+p_CM_log[:, 0].min()) * 0.5
     mid_y = (p_CM_log[:, 1].max()+p_CM_log[:, 1].min()) * 0.5
     mid_z = (p_CM_log[:, 2].max()+p_CM_log[:, 2].min()) * 0.5
+
     ax.set_xlim(0, 29)
     ax.set_ylim(-10, 10)
     ax.set_zlim(-10, 10)
+
+    # Calculate the focus area, e.g., the midpoint of the robot's path or a specific time step
+    focus_midpoint = np.mean(p_CM_log, axis=0)
+
+    # Define the zoom range - the distance around the midpoint you want to include in the view
+    zoom_range = 5.0  # Adjust this value to zoom in or out
+
+    # Set axis limits based on the focus_midpoint and zoom_range
+    ax.set_xlim(focus_midpoint[0] - zoom_range, focus_midpoint[0] + zoom_range)
+    ax.set_ylim(focus_midpoint[1] - zoom_range, focus_midpoint[1] + zoom_range)
+    ax.set_zlim(focus_midpoint[2] - zoom_range, focus_midpoint[2] + zoom_range)
 
 
     ax.set_xlabel('X [m]')
     ax.set_ylabel('Y [m]')
     ax.set_zlabel('Z [m]')
-    ax.set_title('Snake Robot Simulation Paths in 3D')
+    #ax.set_title('Snake Robot Path All Links')
 
     plt.legend()
     plt.grid(True)
@@ -360,5 +458,5 @@ def visualize_simulation_results_3d():
 
 
 
-
-plot_colored_path('3D')
+visualize_simulation_results_3d()
+#plot_colored_path('3D')

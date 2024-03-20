@@ -35,11 +35,11 @@ def draw_sphere(ax, center, radius, color='r'):
     x = center[0] + radius * np.cos(u) * np.sin(v)
     y = center[1] + radius * np.sin(u) * np.sin(v)
     z = center[2] + radius * np.cos(v)
-    ax.plot_surface(x, y, z, color=color, alpha=0.3)
+    ax.plot_surface(x, y, z, color=color, alpha=1.0, zorder=2)
 
 
 
-def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obstacles, dimension,  initial_waypoints, alpha_h):
+def draw_snake_robot(ax, target, t, theta_x, theta_z, p,  params,  waypoint_params, obstacles, dimension,  initial_waypoints, alpha_h):
 
     l = params['l']
     n = params['n']
@@ -84,10 +84,12 @@ def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obst
 
         if dimension == '3D':
         # Plotting the links
-            ax.plot([startx, endx], [starty, endy], [startz, endz], 'bo-', linewidth=1.3)
+            ax.plot([startx, endx], [starty, endy], [startz, endz], 'bo-', linewidth=1.0, zorder=10)
+            ax.plot([target[0]], [target[1]], [target[2]], 'bo', markersize=2, label='Goal')
 
         if dimension == '2D':
             ax.plot([startx, endx], [starty, endy], 'bo-', linewidth=1.3)
+            ax.plot([target[0]], [target[1]], 'bo', markersize=2, label='Goal')
 
 
     
@@ -124,7 +126,7 @@ def draw_snake_robot(ax, t, theta_x, theta_z, p,  params,  waypoint_params, obst
 
     # Set axis limits
     p_numpy = p.full().flatten()  # Assuming p is a CasADi vector
-    zoom_factor = 10  # Adjust this factor to zoom out more or less
+    zoom_factor = 8  # Adjust this factor to zoom out more or less
     ax.set_xlim([p_numpy[0]-n*l-0.03, p_numpy[0]+zoom_factor*n*l+0.3])
     ax.set_ylim([p_numpy[1]-n*l-0.1, p_numpy[1]+zoom_factor*n*l+0.01])
     if dimension == '3D':
