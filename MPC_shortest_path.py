@@ -55,14 +55,14 @@ def mpc_shortest_path(current_p, target, obstacles, params, controller_params,  
         for obstacle in obstacles:
             o_pos = obstacle['center']
             o_rad = obstacle['radius']
-            #opti.subject_to(sumsqr(X[:, i] - o_pos) > (o_rad + safe_margin)**2)
-            #opti.subject_to(norm_2(X[:, i] - o_pos) > (o_rad + safe_margin))
+            #opti.subject_to(sumsqr(X[:, i] - o_pos) > (o_rad + alpha_h/2)**2)
+            #opti.subject_to(norm_2(X[:, i] - o_pos) > (o_rad + alpha_h))
             min_dist_to_obstacle = calculate_min_dist_to_obstacle(A, B, o_pos, o_rad)
-            opti.subject_to(min_dist_to_obstacle > alpha_h/2)
+            opti.subject_to(min_dist_to_obstacle > alpha_h)
             #if i < N-1:  # Clearance constraints for midpoints
                 #midpoint = (X[:, i] + X[:, i+1]) / 2
-                #opti.subject_to(sumsqr(midpoint - o_pos) > (o_rad + safe_margin)**2)
-                #opti.subject_to(norm_2(midpoint - o_pos) > (o_rad + safe_margin))
+                #opti.subject_to(sumsqr(midpoint - o_pos) > (o_rad + alpha_h/2)**2)
+                #opti.subject_to(norm_2(midpoint - o_pos) > (o_rad + alpha_h))
 
 
     f = object_function(X, N)

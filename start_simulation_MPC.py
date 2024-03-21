@@ -103,6 +103,7 @@ def start_simulation(mode, dimension):
             {'center': (15.0, -4.0, 0), 'radius': 1.0}   # o8
         ]
         """
+        """
 
         #14 obstacles
         target = np.array([29.0 , 0.0, 0.0]) #2D
@@ -123,7 +124,65 @@ def start_simulation(mode, dimension):
                     {'center': (20.0, 4.0, 0), 'radius': 1.5},  # o13
                     {'center': (25.0, -0.5, 0), 'radius': 1.0},  # o14
         ]
+        """
+
       
+
+        #Labyrinth challenge
+
+        target = np.array([29.0 , 0.0, 0.0]) #2D
+
+        obstacles = [
+                    # Outer walls (simplified for challenge)
+                    {'center': (5, 5, 0), 'radius': 0.5},
+                    {'center': (5, -5, 0), 'radius': 0.5},
+                    {'center': (10, 5, 0), 'radius': 0.5},
+                    {'center': (10, -5, 0), 'radius': 0.5},
+                    {'center': (15, 5, 0), 'radius': 0.5},
+                    {'center': (15, -5, 0), 'radius': 0.5},
+                    {'center': (20, 5, 0), 'radius': 0.5},
+                    {'center': (20, -5, 0), 'radius': 0.5},
+                    
+                    # Inner obstacles creating the labyrinth paths
+                    {'center': (7, 0, 0), 'radius': 0.5},
+                    {'center': (9, 2, 0), 'radius': 0.5},
+                    {'center': (9, -2, 0), 'radius': 0.5},
+                    {'center': (11, 3, 0), 'radius': 0.5},
+                    {'center': (11, -3, 0), 'radius': 0.5},
+                    {'center': (13, 1, 0), 'radius': 0.5},
+                    {'center': (13, -1, 0), 'radius': 0.5},
+                    {'center': (17, 4, 0), 'radius': 0.5},
+                    {'center': (17, -4, 0), 'radius': 0.5},
+                    {'center': (19, 0, 0), 'radius': 0.5},
+                    {'center': (21, 2, 0), 'radius': 0.5},
+                    {'center': (21, -2, 0), 'radius': 0.5},
+                    {'center': (23, 3, 0), 'radius': 0.5},
+                    {'center': (23, -3, 0), 'radius': 0.5},
+                    {'center': (25, 1, 0), 'radius': 0.5},
+                    {'center': (25, -1, 0), 'radius': 0.5},
+                    {'center': (27, 0, 0), 'radius': 0.5},  # The final obstacle before the goal
+        ]
+  
+
+        """
+
+        #spiral
+
+        obstacles = [
+            {'center': (4, 0, 0), 'radius': 1},
+            {'center': (7, 1, 0), 'radius': 1},
+            {'center': (10, -1, 0), 'radius': 1},
+            {'center': (13, 2, 0), 'radius': 1},
+            {'center': (16, -2, 0), 'radius': 1},
+            {'center': (19, 3, 0), 'radius': 1},
+            {'center': (22, -3, 0), 'radius': 1},
+            {'center': (20, 0, 0), 'radius': 1},
+            {'center': (20, 0, 0), 'radius': 1},
+            {'center': (25, 0, 0), 'radius': 1},
+
+        ]
+        """
+                    
 
 
     if dimension == '3D':
@@ -137,7 +196,7 @@ def start_simulation(mode, dimension):
         
 
         #8 obstacles
-
+        """
 
         target = np.array([29.0 , 0.0, 6.0]) #3D
         obstacles = [
@@ -151,6 +210,8 @@ def start_simulation(mode, dimension):
             {'center': (15.0, 4.0, 2.0), 'radius': 1.0},   # o7
             {'center': (15.0, -4.0, 2.0), 'radius': 1.0}   # o8
         ]
+
+        """
 
         """
 
@@ -179,7 +240,59 @@ def start_simulation(mode, dimension):
         ]
         """
 
+        """
 
+        #Obstacles diagonal
+        target = np.array([29.0 , 0.0, 4.0])
+
+        obstacles= [
+            {'center': (4, -2, 1), 'radius': 1},
+            {'center': (7, -1, 2), 'radius': 1},
+            {'center': (10, 1, 3), 'radius': 1},
+            {'center': (13, 2, 2), 'radius': 1},
+            {'center': (16, 1, 3), 'radius': 1},
+            {'center': (19, -1, 2), 'radius': 1},
+            {'center': (22, -2, 1), 'radius': 1},
+            {'center': (25, 0, 3), 'radius': 1},
+        ]
+        """
+
+        """
+        
+        #Obstacles labyrinth
+        target = np.array([29.0 , 0.0, 4.0])
+        obstacles = [
+            # First row of obstacles, directly in line but with varying heights
+            {'center': (5, 0, 1), 'radius': 2},
+            {'center': (5, 0, 4), 'radius': 2},
+            # Second row of obstacles, forcing a lateral maneuver
+            {'center': (12, -3, 2), 'radius': 2},
+            {'center': (12, 3, 4), 'radius': 2},
+            # Third row, a tighter squeeze, height variance requires vertical maneuvering
+            {'center': (19, -1, 1), 'radius': 1.5},
+            {'center': (19, 1, 5), 'radius': 1.5},
+            # Final challenge before the goal, close placement requires precise navigation
+            {'center': (25, 0, 3), 'radius': 1},
+            {'center': (27, 0, 2), 'radius': 1},
+        ]
+
+        """
+
+        #obstacles serpentine barrier
+        target = np.array([29.0 , 0.0, 4.0])
+
+        obstacles = [
+            # Stagger obstacles across the direct path, forcing a serpentine route
+            {'center': (6, 1, 2), 'radius': 1.5},
+            {'center': (9, -2, 3), 'radius': 1.5},
+            {'center': (12, 2, 1), 'radius': 1.5},
+            {'center': (15, -1, 3), 'radius': 1.5},
+            {'center': (18, 1, 2), 'radius': 1.5},
+            {'center': (21, -2, 1), 'radius': 1.5},
+            {'center': (24, 2, 3), 'radius': 1.5},
+            {'center': (27, -1, 2), 'radius': 1.5},
+        ]
+   
 
      
 
@@ -190,7 +303,7 @@ def start_simulation(mode, dimension):
     initial_N = 10 # Initial prediction horizon
     N = initial_N
     N_min = 2
-    V_min = 0.4 #initial
+    V_min = 0.3 #initial
     V_max = 1.2 #initial
     alpha_h_max = 90*np.pi/180
     alpha_h_min = 5*np.pi/180
@@ -240,8 +353,9 @@ def start_simulation(mode, dimension):
     initial_N = N
     N = extend_horizon(P, N, obstacles, P.shape[0], controller_params)
     goal = P[N-1,:]
-
-
+    prev_solution = P[:N-1,:].T
+    filtered_obstacles = filter_obstacles(p_CM, obstacles, N, goal)
+   
     """
     start_point = tuple(p_CM.tolist())  # Convert p_CM (if it's a numpy array) to tuple
     goal_point = tuple(P[N-1, :].tolist())  # Convert P[N-1, :] to tuple
@@ -254,8 +368,8 @@ def start_simulation(mode, dimension):
         result_queue = Queue()
 
         if (mode == 'Distance'):
-            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, target, obstacles, params, controller_params,
-                                                                        N, k, result_queue, P.T, None))
+            mpc_thread = threading.Thread(target=mpc_shortest_path, args=(p_CM, goal, filtered_obstacles, params, controller_params,
+                                                                        N, k, result_queue, P.T, prev_solution))
             mpc_thread.start()
             try:
                 P_sol, solver_time = result_queue.get()  # This will block until a solution is available
@@ -621,12 +735,12 @@ def print_results(mode, tot_energy, avg_power, total_distance, average_speed, av
 
 if __name__ == "__main__":
 
-    modes = ['Distance']
+    #modes = ['Distance']
     #modes = ['Energy']
-    #modes = ['Energy_alpha']
+    modes = ['Energy_alpha']
 
-    #dimension = '2D'
-    dimension = '3D'
+    dimension = '2D'
+    #dimension = '3D'
 
     results = {}
 

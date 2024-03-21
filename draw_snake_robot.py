@@ -126,7 +126,7 @@ def draw_snake_robot(ax, target, t, theta_x, theta_z, p,  params,  waypoint_para
 
     # Set axis limits
     p_numpy = p.full().flatten()  # Assuming p is a CasADi vector
-    zoom_factor = 8  # Adjust this factor to zoom out more or less
+    zoom_factor = 20  # Adjust this factor to zoom out more or less
     ax.set_xlim([p_numpy[0]-n*l-0.03, p_numpy[0]+zoom_factor*n*l+0.3])
     ax.set_ylim([p_numpy[1]-n*l-0.1, p_numpy[1]+zoom_factor*n*l+0.01])
     if dimension == '3D':

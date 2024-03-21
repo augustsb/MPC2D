@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from casadi import MX, dot, fmax, fmin, sumsqr, sqrt
+from casadi import MX, dot, fmax, fmin, sumsqr, sqrt, norm_2
 
 def is_too_close(point_a, point_b, min_distance):
     """
@@ -93,11 +93,12 @@ def calculate_min_dist_to_obstacle(A, B, obstacle_center, obstacle_radius):
     CasADi-compatible version to calculate the minimum distance from a line segment AB to a circular obstacle.
     """
     # Ensure inputs are CasADi MX symbols
-    A = MX(A)
-    B = MX(B)
+
+    A = MX(A) + 1e-8
+    B = MX(B) + 1e-8
     obstacle_center = MX(obstacle_center)
-    
-    AB = B - A
+
+    AB = B - A 
     AO = obstacle_center - A
     AB_norm_sq = dot(AB, AB)
     AO_dot_AB = dot(AO, AB)

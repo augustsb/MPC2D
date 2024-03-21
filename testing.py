@@ -87,37 +87,130 @@ section_height = 5
 
 # Define obstacles
 # Example: obstacle = {'center': [x, y, z], 'radius': r}
+#target = np.array([29.0 , 0.0, 4.0]) #3D
+target = np.array([29.0 , 0.0, 0.0]) #2D
+start = np.array([0.0 , 0.0, 0.0]) #3D
 obstacles = [
-    {'center': [2, 2, 2], 'radius': 0.5},
-    {'center': [4, 3, 1], 'radius': 0.75},
-    {'center': [6, 2, 3], 'radius': 0.5},
-    # Add as many obstacles as needed
+            {'center': (18.0, -1.0, 4.5), 'radius': 2.0},  # o0
+            {'center': (10.0, 0.0, 1.8), 'radius': 1.5},   # o1
+            {'center': (6.0, 1.0, 3.0), 'radius': 1.0},    # o2
+            {'center': (5.0, 4.0, 4.0), 'radius': 2.0},    # o3
+            {'center': (5.0, -4.0, 4.0), 'radius': 2.0},   # o4
+            {'center': (25.0, 4.0, 4.0), 'radius': 2.0},   # o5
+            {'center': (25.0, -4.0, 4.0), 'radius': 2.0},  # o6
+            {'center': (15.0, 4.0, 2.0), 'radius': 1.0},   # o7
+            {'center': (15.0, -4.0, 2.0), 'radius': 1.0}   # o8
 ]
 
-obstacles = []
+obstacles_diagonal = [
+    {'center': (4, -2, 1), 'radius': 1},
+    {'center': (7, -1, 2), 'radius': 1},
+    {'center': (10, 1, 3), 'radius': 1},
+    {'center': (13, 2, 2), 'radius': 1},
+    {'center': (16, 1, 3), 'radius': 1},
+    {'center': (19, -1, 2), 'radius': 1},
+    {'center': (22, -2, 1), 'radius': 1},
+    {'center': (25, 0, 3), 'radius': 1},
+]
 
-# Parameters
-path_start, path_end = 2, 8
-horizontal_clearance = vertical_clearance = 0.20
-obstacle_radius = 0.05  # Small radius to visualize the boundary
-spacing = 1  # Distance between obstacles
 
-# Generate obstacles along the tunnel boundaries
-for x in np.arange(path_start, path_end + spacing, spacing):
-    # Horizontal boundaries at y = +/- clearance
-    obstacles.append({'center': [x, -horizontal_clearance, 0], 'radius': obstacle_radius})
-    obstacles.append({'center': [x, horizontal_clearance, 0], 'radius': obstacle_radius})
-    # Vertical boundaries at z = +/- clearance
-    obstacles.append({'center': [x, 0, -vertical_clearance], 'radius': obstacle_radius})
-    obstacles.append({'center': [x, 0, vertical_clearance], 'radius': obstacle_radius})
+obstacles_labyrinth = [
+    # First row of obstacles, directly in line but with varying heights
+    {'center': (5, 0, 1), 'radius': 2},
+    {'center': (5, 0, 4), 'radius': 2},
+    # Second row of obstacles, forcing a lateral maneuver
+    {'center': (12, -3, 2), 'radius': 2},
+    {'center': (12, 3, 4), 'radius': 2},
+    # Third row, a tighter squeeze, height variance requires vertical maneuvering
+    {'center': (19, -1, 1), 'radius': 1.5},
+    {'center': (19, 1, 5), 'radius': 1.5},
+    # Final challenge before the goal, close placement requires precise navigation
+    {'center': (25, 0, 3), 'radius': 1},
+    {'center': (27, 0, 2), 'radius': 1},
+]
 
+
+obstacles_serpentine_barrier = [
+    # Stagger obstacles across the direct path, forcing a serpentine route
+    {'center': (6, 1, 2), 'radius': 1.5},
+    {'center': (9, -2, 3), 'radius': 1.5},
+    {'center': (12, 2, 1), 'radius': 1.5},
+    {'center': (15, -1, 3), 'radius': 1.5},
+    {'center': (18, 1, 2), 'radius': 1.5},
+    {'center': (21, -2, 1), 'radius': 1.5},
+    {'center': (24, 2, 3), 'radius': 1.5},
+    {'center': (27, -1, 2), 'radius': 1.5},
+]
+
+#2D
+
+obstacles_zigzag_gate = [
+    {'center': (5, 2), 'radius': 1},
+    {'center': (10, -2), 'radius': 1},
+    {'center': (15, 2), 'radius': 1},
+    {'center': (20, -2), 'radius': 1},
+    {'center': (25, 2), 'radius': 1},
+]
+
+obstacles_spiral =  [
+    {'center': (4, 0), 'radius': 1},
+    {'center': (7, 1), 'radius': 1},
+    {'center': (10, -1), 'radius': 1},
+    {'center': (13, 2), 'radius': 1},
+    {'center': (16, -2), 'radius': 1},
+    {'center': (19, 3), 'radius': 1},
+    {'center': (22, -3), 'radius': 1},
+    {'center': (20, 0), 'radius': 1},
+    {'center': (25, 0), 'radius': 1},
+]
+
+obstacles_labyrinth = [
+    # Outer walls (simplified for challenge)
+    {'center': (5, 5), 'radius': 0.5},
+    {'center': (5, -5), 'radius': 0.5},
+    {'center': (10, 5), 'radius': 0.5},
+    {'center': (10, -5), 'radius': 0.5},
+    {'center': (15, 5), 'radius': 0.5},
+    {'center': (15, -5), 'radius': 0.5},
+    {'center': (20, 5), 'radius': 0.5},
+    {'center': (20, -5), 'radius': 0.5},
+    
+    # Inner obstacles creating the labyrinth paths
+    {'center': (7, 0), 'radius': 0.5},
+    {'center': (9, 2), 'radius': 0.5},
+    {'center': (9, -2), 'radius': 0.5},
+    {'center': (11, 3), 'radius': 0.5},
+    {'center': (11, -3), 'radius': 0.5},
+    {'center': (13, 1), 'radius': 0.5},
+    {'center': (13, -1), 'radius': 0.5},
+    {'center': (17, 4), 'radius': 0.5},
+    {'center': (17, -4), 'radius': 0.5},
+    {'center': (19, 0), 'radius': 0.5},
+    {'center': (21, 2), 'radius': 0.5},
+    {'center': (21, -2), 'radius': 0.5},
+    {'center': (23, 3), 'radius': 0.5},
+    {'center': (23, -3), 'radius': 0.5},
+    {'center': (25, 1), 'radius': 0.5},
+    {'center': (25, -1), 'radius': 0.5},
+    {'center': (27, 0), 'radius': 0.5}  # The final obstacle before the goal
+]
+
+
+
+obstacles = obstacles_maze_of_rings
 # Plotting
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-ax.set_xlim(0, section_length)
-ax.set_ylim(0, section_width)
-ax.set_zlim(0, section_height)
+fig, ax = plt.subplots()
+#ax = fig.add_subplot(111, projection='3d')
+ax.set_xlim(0, 29)
+ax.set_ylim(-10, 10)
+#ax.set_zlim(0, 6)
 
+
+ax.plot([start[0]], [start[1]], 'go', markersize=7, label='Start')
+
+ax.plot([target[0]], [target[1]], 'bo', markersize=2, label='Goal')
+
+ax.plot([start[0], target[0]], [start[1], target[1]], 'r--', linewidth=2, label='Direct Path')
 # Draw each obstacle
 for obs in obstacles:
     # For simplicity, this example uses scatter plot to represent obstacles

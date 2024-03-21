@@ -57,9 +57,12 @@ def plot_colored_path(mode, r_acceptance = 0.5):
     vmin = max(power_median - 0.5 * power_iqr, min(energy_per_second))
     vmax = min(power_median + 0.5 * power_iqr, max(energy_per_second))
 
+    text_str_power = f"Average Power Usage: {avg_power_usage:.2f} W"
+    text_str_velocity = f"Average Speed: {total_distance_traveled / total_time:.2f} m/s"
+
 
     # Function to plot the paths
-    def plot_path_with_color(p_CM_log, values, title, cbar_label, fig_path, vmin, vmax):
+    def plot_path_with_color(p_CM_log, values, title, text_str, cbar_label, fig_path, vmin, vmax):
         plt.figure(figsize=(10, 6))
         x = p_CM_log[:, 0]
         y = p_CM_log[:, 1]
@@ -92,16 +95,15 @@ def plot_colored_path(mode, r_acceptance = 0.5):
         if not os.path.exists('figs'):
             os.makedirs('figs')
         #text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
-        text_str = f"Average Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
         plt.text(0.05, 0.95, text_str, transform=plt.gca().transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
         plt.savefig(fig_path)
         print(f"Figure saved to {fig_path}")
         plt.show()
 
 
-    def plot_path_with_color_3d(p_CM_log, values, title, cbar_label, fig_path, vmin, vmax):
+    def plot_path_with_color_3d(p_CM_log, values, title, text_str, cbar_label, fig_path, vmin, vmax):
 
-        fig = plt.figure(figsize=(10, 8))
+        fig = plt.figure(figsize=(8, 6))
         ax = fig.add_subplot(111, projection='3d')
         x, y, z = p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2]
 
@@ -111,10 +113,11 @@ def plot_colored_path(mode, r_acceptance = 0.5):
         lc.set_array(values)
         lc.set_linewidth(2)
         ax.add_collection(lc)
-        cbar = fig.colorbar(lc, ax=ax, label=cbar_label)
+        #cbar = fig.colorbar(lc, ax=ax, label=cbar_label)
+        cbar = fig.colorbar(lc, ax=ax, label=cbar_label, shrink=0.5, aspect=20, pad=0.02)
 
         for obstacle in obstacles:
-            draw_sphere(ax, obstacle['center'], obstacle['radius'], color='r')
+            draw_sphere(ax, obstacle['center'], obstacle['radius'], color='k')
 
         ax.plot([x[0]], [y[0]], [z[0]], 'go', markersize=7, label='Start')
         #ax.plot([x[-1]], [y[-1]], [z[-1]], 'bo', markersize=7, label='End')
@@ -126,6 +129,9 @@ def plot_colored_path(mode, r_acceptance = 0.5):
         ax.set_ylabel('Y[m]')
         ax.set_zlabel('Z[m]')
         #ax.set_title(title)
+        ax.set_xlim(0, 29)
+        ax.set_ylim(-10, 10)
+        ax.set_zlim(0, 6)
         plt.legend()
         plt.grid(True)
 
@@ -133,7 +139,6 @@ def plot_colored_path(mode, r_acceptance = 0.5):
             os.makedirs('figs')
 
         #text_str = f"Average Solver Time: {avg_solver_time:.4f} s\nAverage Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
-        text_str = f"Average Power Usage: {avg_power_usage:.2f} W\nAverage Speed: {total_distance_traveled / total_time:.2f} m/s"
         ax.text2D(0.05, 0.95, text_str, transform=ax.transAxes, fontsize=9, verticalalignment='top', bbox=dict(boxstyle="round", alpha=0.5, facecolor='white'))
         set_axes_equal(ax)
         # For 3D plotting, use this function after all other plotting commands and just before plt.show() or plt.savefig():
@@ -144,12 +149,13 @@ def plot_colored_path(mode, r_acceptance = 0.5):
 
 
     if (mode == '3D'):
-        plot_path_with_color_3d(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity [m/s]', 'figs/cm_path_velocity.png', 0, 0.6)
-        plot_path_with_color_3d(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage [W]', 'figs/cm_path_energy.png', 5, 30)
+
+        plot_path_with_color_3d(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', text_str_velocity, 'Velocity [m/s]', 'figs/cm_path_velocity.png', 0, 0.6)
+        plot_path_with_color_3d(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', text_str_power, 'Energy Usage [W]', 'figs/cm_path_energy.png', 5, 30)
 
     else:
-        plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', 'Velocity [m/s]', 'figs/cm_path_velocity.png', min(velocity_log), max(velocity_log))
-        plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', 'Energy Usage [W]', 'figs/cm_path_energy.png', vmin, vmax)
+        plot_path_with_color(p_CM_log, velocity_log, 'CM Path with Velocity Coloring', text_str_velocity, 'Velocity [m/s]', 'figs/cm_path_velocity.png', min(velocity_log), max(velocity_log))
+        plot_path_with_color(p_CM_log, energy_per_second, 'CM Path with Energy Usage Coloring', text_str_power, 'Energy Usage [W]', 'figs/cm_path_energy.png', vmin, vmax)
 
 
 
@@ -184,7 +190,7 @@ def draw_sphere(ax, center, radius, color='r'):
     x = center[0] + radius * np.cos(u) * np.sin(v)
     y = center[1] + radius * np.sin(u) * np.sin(v)
     z = center[2] + radius * np.cos(v)
-    ax.plot_surface(x, y, z, color=color, alpha=1.0,  zorder=2)
+    ax.plot_surface(x, y, z, color=color, alpha=0.5)
 
 
 def draw_sphere_acceptance(ax, center, radius, **kwargs):
@@ -197,6 +203,20 @@ def draw_sphere_acceptance(ax, center, radius, **kwargs):
     # Plot the points as a surface
     ax.plot_surface(x, y, z, **kwargs)
 
+def distance_to_obstacle_edge(point, obstacle):
+    # Extract obstacle center and radius
+    obstacle_center = np.array(obstacle['center']).flatten()  # Flatten the obstacle center array
+    radius = obstacle['radius']
+    
+    # Ensure point is a flat array to match obstacle_center's dimensions
+    point = np.array(point).flatten()
+    
+    # Calculate Euclidean distance from point to obstacle center
+    distance_center_to_point = np.linalg.norm(point[:2] - obstacle_center[:2])  # Consider only X and Y for 2D distance
+    
+    # Calculate distance from point to the nearest edge of the obstacle
+    distance_to_edge = distance_center_to_point
+    return distance_to_edge
 
 
 def visualize_simulation_results():
@@ -218,6 +238,38 @@ def visualize_simulation_results():
     obstacles = log_data['obstacles']
 
     plt.figure(figsize=(10, 6))
+  
+
+    min_distances = []
+
+    # Iterate over each point in p_CM_log
+    for p_CM in p_CM_log:
+        # Calculate distances to all obstacles and pick the minimum
+        distances = [distance_to_obstacle_edge(p_CM[:2], obstacle) for obstacle in obstacles]
+        min_distance = min(distances)
+        min_distances.append(min_distance)
+
+    min_distances = np.array(min_distances)
+
+
+    """
+    min_distances = []
+
+    # Assume obstacles is a list of dictionaries, each with 'center' and 'radius' keys
+    for time_step in range(len(all_link_x_log)):
+        link_distances_at_timestep = []
+        for link_idx in range(all_link_x_log.shape[1]):  # Iterate over each link
+            link_position = np.array([all_link_x_log[time_step, link_idx], all_link_y_log[time_step, link_idx]])
+            # Calculate distances from this link to all obstacles and pick the minimum
+            distances = [distance_to_obstacle_edge(link_position, obstacle) for obstacle in obstacles]
+            link_distances_at_timestep.append(min(distances))
+        # Store the minimum distance among all links for this time step
+        min_distances.append(min(link_distances_at_timestep))
+
+    min_distances = np.array(min_distances)
+
+    """
+
 
     # Plot p_CM positions
     #plt.plot(p_CM_log[:, 0], p_CM_log[:, 1], label='Path', marker='o', linestyle='-', markersize=0.1, color='b')
@@ -228,7 +280,8 @@ def visualize_simulation_results():
     for link_idx in range(all_link_x_log.shape[1]):  # Assuming second dimension is number of links
         x = np.squeeze(all_link_x_log[:, link_idx])  # Remove unnecessary dimension
         y = np.squeeze(all_link_y_log[:, link_idx])
-        plt.plot(x, y, marker='x', linestyle='-', markersize=0.3, label=f'Link {link_idx}')
+        #plt.plot(x, y, marker='x', linestyle='-', markersize=0.3, label=f'Link {link_idx}')
+        plt.plot(x, y, marker='x', linestyle='-', markersize=0.3)
 
     # Plot obstacles
     for obstacle in obstacles:
@@ -261,21 +314,29 @@ def visualize_simulation_results():
     # Optionally, you can still display the plot in addition to saving it
     #plt.show()
 
-    # New code to plot phi_ref_x
-    plt.figure(figsize=(10, 6))  # Create a new figure for phi_ref_x
-    time_steps = np.arange(len(phi_ref_x_log))  # Assuming time steps are equal and can be represented as an array of indices
-    plt.plot(time_steps, phi_ref_x_log, label='$\phi_{ref\_x}$ over time', marker='None', linestyle='-', color='green')
-    
+    plt.figure(figsize=(10, 6))
+    time_steps = np.arange(len(phi_ref_x_log))
+
+    # Plotting phi_ref_x
+    plt.plot(time_steps, phi_ref_x_log, label='$\phi_{ref\_x}$ over time', color='green', linestyle='-')
     plt.xlabel('Time Step')
-    plt.ylabel('$\phi_{ref\_x}$ (Radians)')
-    #plt.title('Reference Angular Position ($\phi_{ref\_x}$) Over Time')
-    plt.legend()
+    plt.ylabel('$\phi_{ref\_x}$ (Radians)', color='green')
+    plt.tick_params(axis='y', labelcolor='green')
+
+    # Create a second y-axis for the minimum distance to the closest obstacle
+    ax2 = plt.twinx()
+    ax2.plot(time_steps, min_distances, label='Distance to Closest Obstacle', color='blue', linestyle='--')
+    ax2.set_ylabel('Distance (m)', color='blue')
+    ax2.tick_params(axis='y', labelcolor='blue')
+
+    plt.title('Reference Angular Position and Distance to Closest Obstacle Over Time')
     plt.grid(True)
-    
-    # Save the figure for phi_ref_x
-    phi_ref_x_figure_path = os.path.join('figs', 'phi_ref_x_over_time.png')
-    plt.savefig(phi_ref_x_figure_path)
-    print(f"Figure for phi_ref_x saved to {phi_ref_x_figure_path}")
+
+    # Save the combined figure
+    combined_figure_path = os.path.join('figs', 'phi_ref_x_and_distance_over_time.png')
+    plt.savefig(combined_figure_path)
+    print(f"Combined figure saved to {combined_figure_path}")
+    plt.show()
 
 
 
@@ -320,16 +381,8 @@ def draw_snake_robot_at_time_t(idx, ax,  l = 0.07, n = 10):
         endz = np.squeeze(endz)
 
         # Plotting the links
-        ax.plot([startx, endx], [starty, endy], [startz, endz], 'bo-', linewidth=1.5, zorder=10)
+        ax.plot([startx, endx], [starty, endy], [startz, endz], 'bo-', linewidth=1.0, zorder=20, markersize=3)
  
-
-
-
-
-
-
-
-
 
 
 def visualize_simulation_results_3d(r_acceptance=0.5):
@@ -350,7 +403,7 @@ def visualize_simulation_results_3d(r_acceptance=0.5):
     all_link_z_log = np.array(log_data['all_link_z'])
     obstacles = log_data['obstacles']
 
-    n = 20  # Adjust n to change the sparsity
+    n = 25  # Adjust n to change the sparsity
     sparse_p_CM_log = p_CM_log[::n, :]
 
 
@@ -376,7 +429,7 @@ def visualize_simulation_results_3d(r_acceptance=0.5):
     # Plot p_CM positions
     #ax.plot(p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2], label='Path', marker='o', linestyle='-', markersize=0.1, color='b')
     #ax.plot(p_CM_log[:, 0], p_CM_log[:, 1], p_CM_log[:, 2], marker='x', linestyle='-', markersize=0.3, zorder=10)
-    ax.scatter(sparse_p_CM_log[:, 0], sparse_p_CM_log[:, 1], sparse_p_CM_log[:, 2], c='b', marker='o', s=10)
+    ax.scatter(sparse_p_CM_log[:, 0], sparse_p_CM_log[:, 1], sparse_p_CM_log[:, 2], c='b', marker='o', s=5)
     # Plot middle link positions
     #ax.plot(middle_link_log[:, 0], middle_link_log[:, 1], middle_link_log[:, 2], label='Middle Link Path', marker='x', linestyle='-', markersize=0.1, color='y')
 
@@ -428,7 +481,7 @@ def visualize_simulation_results_3d(r_acceptance=0.5):
     focus_midpoint = np.mean(p_CM_log, axis=0)
 
     # Define the zoom range - the distance around the midpoint you want to include in the view
-    zoom_range = 5.0  # Adjust this value to zoom in or out
+    zoom_range = 10.0  # Adjust this value to zoom in or out
 
     # Set axis limits based on the focus_midpoint and zoom_range
     ax.set_xlim(focus_midpoint[0] - zoom_range, focus_midpoint[0] + zoom_range)
@@ -458,5 +511,7 @@ def visualize_simulation_results_3d(r_acceptance=0.5):
 
 
 
-visualize_simulation_results_3d()
+#visualize_simulation_results_3d()
+visualize_simulation_results() 
+
 #plot_colored_path('3D')

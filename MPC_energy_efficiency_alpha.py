@@ -73,7 +73,7 @@ def object_function_alpha(X, alpha_h, V, N):
         f_energy += predicted_average_energy
  
 
-    total_cost = 0.1*f_dist + 0*f_energy + 0.9*f_time
+    total_cost = 0.1*f_dist + 0.9*f_energy + 0*f_time
 
     return total_cost
     #return  5*f_energy + f_dist + 0*f_time
