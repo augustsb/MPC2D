@@ -210,7 +210,7 @@ ax.plot([start[0]], [start[1]], 'go', markersize=7, label='Start')
 
 ax.plot([target[0]], [target[1]], 'bo', markersize=2, label='Goal')
 
-ax.plot([start[0], target[0]], [start[1], target[1]], 'r--', linewidth=2, label='Direct Path')
+ax.plot([start[0], target[0]], [start[1], target[1-+]], 'r--', linewidth=2, label='Direct Path')
 # Draw each obstacle
 for obs in obstacles:
     # For simplicity, this example uses scatter plot to represent obstacles
